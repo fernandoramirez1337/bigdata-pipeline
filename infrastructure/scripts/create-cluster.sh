@@ -99,6 +99,7 @@ if [ -z "$SG_ID" ]; then
         --description "Security group for Big Data cluster - 4 EC2 instances" \
         --vpc-id $VPC_ID \
         --region $REGION \
+        --query 'GroupId' \
         --output text)
 
     echo -e "${GREEN}✓ Security Group creado: $SG_ID${NC}"

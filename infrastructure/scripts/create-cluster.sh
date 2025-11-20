@@ -25,6 +25,11 @@ AMI_ID="${AMI_ID:-ami-0453ec754f44f9a4a}"  # Amazon Linux 2023 us-east-1
 MY_IP="${MY_IP:-0.0.0.0/0}"  # CAMBIAR a tu IP para mayor seguridad
 REGION="${AWS_REGION:-us-east-1}"
 
+# Tipos de instancia (configurables para AWS Learner Lab)
+MASTER_TYPE="${MASTER_TYPE:-t2.medium}"    # 2 vCPU, 4 GB RAM
+WORKER_TYPE="${WORKER_TYPE:-t2.medium}"    # 2 vCPU, 4 GB RAM
+STORAGE_TYPE="${STORAGE_TYPE:-t2.medium}"  # 2 vCPU, 4 GB RAM
+
 echo -e "${YELLOW}Configuration:${NC}"
 echo "  Key Name: $KEY_NAME"
 echo "  AMI ID: $AMI_ID"
@@ -191,10 +196,10 @@ echo '127.0.0.1 $HOSTNAME' >> /etc/hosts" \
 # Lanzar las 4 instancias
 echo -e "${YELLOW}[5/8] Lanzando instancias EC2...${NC}"
 
-launch_instance "bigdata-master" "t3.large" 100 "master-node"
-launch_instance "bigdata-worker1" "t3.xlarge" 200 "worker1-node"
-launch_instance "bigdata-worker2" "t3.xlarge" 200 "worker2-node"
-launch_instance "bigdata-storage" "t3.large" 150 "storage-node"
+launch_instance "bigdata-master" "$MASTER_TYPE" 100 "master-node"
+launch_instance "bigdata-worker1" "$WORKER_TYPE" 200 "worker1-node"
+launch_instance "bigdata-worker2" "$WORKER_TYPE" 200 "worker2-node"
+launch_instance "bigdata-storage" "$STORAGE_TYPE" 150 "storage-node"
 
 # Esperar a que las instancias estén corriendo
 echo -e "${YELLOW}[6/8] Esperando a que las instancias inicien...${NC}"

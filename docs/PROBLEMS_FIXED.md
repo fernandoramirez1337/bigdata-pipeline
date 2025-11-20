@@ -336,7 +336,76 @@ getent hosts master-node
 
 ---
 
-**Fecha de revisión**: 20 de Noviembre 2025, 15:30 UTC
+## Problema 8: Instalación Incompleta en Master y Storage ❌ → ✅
+
+### Descripción
+Los scripts `setup-master.sh` y `setup-storage.sh` no completaron la instalación correctamente durante `setup-all`.
+
+### Síntomas
+**Master Node**:
+- ✅ Zookeeper installed
+- ✅ Kafka installed
+- ❌ Flink NOT installed
+- ❌ Spark NOT installed
+- ❌ Hadoop downloaded but NOT extracted
+
+**Storage Node**:
+- ❌ PostgreSQL NOT installed (postgresql-15.service not found)
+- ✅ Superset venv created (but unusable without PostgreSQL)
+
+### Causa Raíz
+Los scripts de instalación fallaron silenciosamente después de instalar algunos componentes. Posibles causas:
+- Timeout en descargas
+- Errores de red no manejados
+- Scripts terminados prematuramente
+- El orchestrate-cluster.sh no detectó los fallos
+
+### Impacto
+- Master node no puede ejecutar Flink JobManager, Spark Master, o HDFS NameNode
+- Storage node no puede ejecutar Superset (requiere PostgreSQL)
+- Cluster no funcional
+
+### Solución
+
+Creados 3 scripts de corrección:
+
+**1. fix-master.sh** - Completa instalación del Master:
+- Descarga e instala Flink 1.18.0 (JobManager)
+- Descarga e instala Spark 3.5.0 (Master)
+- Extrae y configura Hadoop 3.3.6 (NameNode)
+- Configura variables de entorno
+- Formatea HDFS NameNode
+
+**2. fix-storage.sh** - Completa instalación del Storage:
+- Instala PostgreSQL 15
+- Configura autenticación MD5 (corrige el problema ident)
+- Crea databases: superset, taxi_analytics
+- Crea usuario: bigdata / bigdata123
+- Reinicializa Superset con la base de datos correcta
+- Crea admin user: admin / admin123
+
+**3. run-fixes.sh** - Orquestador:
+- Copia scripts a las instancias remotas
+- Ejecuta fix-master.sh en Master
+- Ejecuta fix-storage.sh en Storage
+- Verifica instalaciones completadas
+
+**Archivos creados**:
+- `infrastructure/scripts/fix-master.sh`
+- `infrastructure/scripts/fix-storage.sh`
+- `infrastructure/scripts/run-fixes.sh`
+
+**Ejecución**:
+```bash
+cd bigdata-pipeline
+./infrastructure/scripts/run-fixes.sh
+```
+
+**Estado**: ✅ SCRIPTS CREADOS - Pendiente de ejecución
+
+---
+
+**Fecha de revisión**: 20 de Noviembre 2025, 20:45 UTC
 **Revisor**: Claude (AI Assistant)
-**Archivos comprometidos**: 7
-**Commits realizados**: Pendiente
+**Archivos comprometidos**: 10 (7 anteriores + 3 nuevos scripts)
+**Commits realizados**: 3 (+ 1 pendiente)

@@ -1,10 +1,7 @@
 #!/bin/bash
 ###############################################################################
-# Finalize Cluster Setup
-# This script:
-# 1. Initializes Apache Superset on Storage node
-# 2. Starts all cluster services
-# 3. Verifies everything is running
+# Start All Cluster Services
+# Quick script to start services without re-initializing Superset
 ###############################################################################
 
 set -e
@@ -25,36 +22,8 @@ SSH_KEY="${SSH_KEY:-~/.ssh/bigd-key.pem}"
 SSH_USER="ec2-user"
 
 echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}Finalizing Big Data Cluster Setup${NC}"
+echo -e "${BLUE}Starting Big Data Cluster Services${NC}"
 echo -e "${BLUE}=========================================${NC}"
-echo ""
-
-#==============================================================================
-# STEP 1: Initialize Superset
-#==============================================================================
-echo -e "${YELLOW}[1/3] Initializing Apache Superset...${NC}"
-
-# Copy initialization script to Storage
-echo "Copying initialize-superset.sh to Storage node..."
-scp -i $SSH_KEY infrastructure/scripts/initialize-superset.sh $SSH_USER@$STORAGE_IP:/home/ec2-user/
-
-# Execute initialization
-echo "Running Superset initialization..."
-ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "chmod +x /home/ec2-user/initialize-superset.sh && bash /home/ec2-user/initialize-superset.sh"
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Superset initialized successfully!${NC}"
-else
-    echo -e "${RED}❌ Superset initialization failed${NC}"
-    exit 1
-fi
-
-echo ""
-
-#==============================================================================
-# STEP 2: Start All Cluster Services
-#==============================================================================
-echo -e "${YELLOW}[2/3] Starting all cluster services...${NC}"
 echo ""
 
 # Start Zookeeper
@@ -142,9 +111,9 @@ echo -e "${GREEN}✅ All services started!${NC}"
 echo ""
 
 #==============================================================================
-# STEP 3: Verify Services
+# Verify Services
 #==============================================================================
-echo -e "${YELLOW}[3/3] Verifying cluster services...${NC}"
+echo -e "${YELLOW}Verifying cluster services...${NC}"
 echo ""
 
 echo -e "${BLUE}Master Node ($MASTER_IP):${NC}"
@@ -203,7 +172,7 @@ EOF
 
 echo ""
 echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}Cluster Finalization Complete!${NC}"
+echo -e "${GREEN}Cluster Services Started!${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo ""
 echo -e "${BLUE}Web UIs:${NC}"

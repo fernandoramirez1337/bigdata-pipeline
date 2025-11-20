@@ -16,8 +16,8 @@ INSTALL_DIR="/opt/bigdata"
 DATA_DIR="/data"
 HADOOP_VERSION="3.3.6"
 
-# IPs (CAMBIAR SEGÚN TU CONFIGURACIÓN)
-MASTER_IP="MASTER_PRIVATE_IP"  # Actualizar manualmente
+# IPs (obtenidas de /etc/hosts)
+MASTER_IP=$(getent hosts master-node | awk '{print $1}')
 STORAGE_IP=$(hostname -I | awk '{print $1}')
 
 echo "========================================="

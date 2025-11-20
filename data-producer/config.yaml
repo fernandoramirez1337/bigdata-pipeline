@@ -3,7 +3,7 @@
 # Kafka Configuration
 kafka:
   bootstrap_servers:
-    - "localhost:9092"  # Change to Master IP when deploying
+    - "master-node:9092"  # Uses hostname from /etc/hosts
   topic: "taxi-trips-stream"
   compression_type: "snappy"
   batch_size: 16384

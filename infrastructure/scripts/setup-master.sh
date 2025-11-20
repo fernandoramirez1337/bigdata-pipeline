@@ -20,11 +20,11 @@ FLINK_VERSION="1.18.0"
 SPARK_VERSION="3.5.0"
 HADOOP_VERSION="3.3.6"
 
-# IPs de los workers (CAMBIAR SEGÚN TU CONFIGURACIÓN)
+# IPs de los nodos (obtenidas de /etc/hosts)
 MASTER_IP=$(hostname -I | awk '{print $1}')
-WORKER1_IP="WORKER1_PRIVATE_IP"  # Actualizar manualmente
-WORKER2_IP="WORKER2_PRIVATE_IP"  # Actualizar manualmente
-STORAGE_IP="STORAGE_PRIVATE_IP"  # Actualizar manualmente
+WORKER1_IP=$(getent hosts worker1-node | awk '{print $1}')
+WORKER2_IP=$(getent hosts worker2-node | awk '{print $1}')
+STORAGE_IP=$(getent hosts storage-node | awk '{print $1}')
 
 echo "========================================="
 echo "MASTER NODE SETUP - EC2-1"

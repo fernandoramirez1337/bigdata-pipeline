@@ -38,12 +38,13 @@ usage() {
 }
 
 # Configuration (UPDATE THESE WITH YOUR EC2 IPs)
-MASTER_IP="${MASTER_IP:-MASTER_PRIVATE_IP}"
-WORKER1_IP="${WORKER1_IP:-WORKER1_PRIVATE_IP}"
-WORKER2_IP="${WORKER2_IP:-WORKER2_PRIVATE_IP}"
-STORAGE_IP="${STORAGE_IP:-STORAGE_PRIVATE_IP}"
+# Using PUBLIC IPs for SSH from local machine
+MASTER_IP="${MASTER_IP:-44.210.18.254}"
+WORKER1_IP="${WORKER1_IP:-44.221.77.132}"
+WORKER2_IP="${WORKER2_IP:-3.219.215.11}"
+STORAGE_IP="${STORAGE_IP:-98.88.249.180}"
 
-SSH_KEY="${SSH_KEY:-~/.ssh/aws-academy-key.pem}"
+SSH_KEY="${SSH_KEY:-~/.ssh/bigd-key.pem}"
 SSH_USER="${SSH_USER:-ec2-user}"
 
 #==============================================================================

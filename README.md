@@ -220,6 +220,11 @@ crontab -e
 - 📖 **[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Instalación detallada paso a paso
 - ⚡ **[QUICK_START_4EC2.md](docs/QUICK_START_4EC2.md)** - Checklist rápido de deployment
 
+### Documentos de Implementación (NUEVO)
+
+- 📝 **[IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md)** - Log detallado de implementación con problemas y soluciones
+- ✅ **[CHECKLIST.md](docs/CHECKLIST.md)** - Checklist completo de todas las fases del proyecto
+
 ### Recursos Técnicos
 
 - **[Scripts README](infrastructure/scripts/README.md)** - Documentación de scripts de infraestructura

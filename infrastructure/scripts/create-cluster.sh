@@ -196,42 +196,119 @@ echo '127.0.0.1 $HOSTNAME' >> /etc/hosts" \
 # Lanzar las 4 instancias
 echo -e "${YELLOW}[5/8] Lanzando instancias EC2...${NC}"
 
-launch_instance "bigdata-master" "$MASTER_TYPE" 30 "master-node"
-launch_instance "bigdata-worker1" "$WORKER_TYPE" 50 "worker1-node"
-launch_instance "bigdata-worker2" "$WORKER_TYPE" 50 "worker2-node"
-launch_instance "bigdata-storage" "$STORAGE_TYPE" 50 "storage-node"
+echo -e "${YELLOW}Lanzando bigdata-master ($MASTER_TYPE, 30GB)...${NC}"
+MASTER_INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id $AMI_ID \
+    --instance-type $MASTER_TYPE \
+    --key-name $KEY_NAME \
+    --security-group-ids $SG_ID \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":30,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-master}]" \
+    --user-data "#!/bin/bash
+hostnamectl set-hostname master-node
+echo '127.0.0.1 master-node' >> /etc/hosts" \
+    --region $REGION \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+echo -e "${GREEN}✓ bigdata-master creado: $MASTER_INSTANCE_ID${NC}"
+
+echo -e "${YELLOW}Lanzando bigdata-worker1 ($WORKER_TYPE, 50GB)...${NC}"
+WORKER1_INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id $AMI_ID \
+    --instance-type $WORKER_TYPE \
+    --key-name $KEY_NAME \
+    --security-group-ids $SG_ID \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-worker1}]" \
+    --user-data "#!/bin/bash
+hostnamectl set-hostname worker1-node
+echo '127.0.0.1 worker1-node' >> /etc/hosts" \
+    --region $REGION \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+echo -e "${GREEN}✓ bigdata-worker1 creado: $WORKER1_INSTANCE_ID${NC}"
+
+echo -e "${YELLOW}Lanzando bigdata-worker2 ($WORKER_TYPE, 50GB)...${NC}"
+WORKER2_INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id $AMI_ID \
+    --instance-type $WORKER_TYPE \
+    --key-name $KEY_NAME \
+    --security-group-ids $SG_ID \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-worker2}]" \
+    --user-data "#!/bin/bash
+hostnamectl set-hostname worker2-node
+echo '127.0.0.1 worker2-node' >> /etc/hosts" \
+    --region $REGION \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+echo -e "${GREEN}✓ bigdata-worker2 creado: $WORKER2_INSTANCE_ID${NC}"
+
+echo -e "${YELLOW}Lanzando bigdata-storage ($STORAGE_TYPE, 50GB)...${NC}"
+STORAGE_INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id $AMI_ID \
+    --instance-type $STORAGE_TYPE \
+    --key-name $KEY_NAME \
+    --security-group-ids $SG_ID \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-storage}]" \
+    --user-data "#!/bin/bash
+hostnamectl set-hostname storage-node
+echo '127.0.0.1 storage-node' >> /etc/hosts" \
+    --region $REGION \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+echo -e "${GREEN}✓ bigdata-storage creado: $STORAGE_INSTANCE_ID${NC}"
 
 # Esperar a que las instancias estén corriendo
 echo -e "${YELLOW}[6/8] Esperando a que las instancias inicien...${NC}"
-sleep 10
+echo "  Esperando 60 segundos para que las instancias arranquen..."
+sleep 60
 
-aws ec2 wait instance-running \
-    --filters "Name=network-interface.group-id,Values=$SG_ID" \
-    --region $REGION
-
-echo -e "${GREEN}✓ Todas las instancias están corriendo${NC}"
-
-# Esperar un poco más para obtener IPs públicas
-sleep 10
-
-# Obtener y mostrar información de las instancias
+# Intentar obtener información de las instancias (puede fallar en AWS Learner Lab)
 echo -e "${YELLOW}[7/8] Obteniendo información de instancias...${NC}"
 
 INSTANCES_INFO=$(aws ec2 describe-instances \
     --filters "Name=instance-state-name,Values=running" "Name=network-interface.group-id,Values=$SG_ID" \
     --query 'Reservations[*].Instances[*].[Tags[?Key==`Name`].Value|[0],InstanceId,InstanceType,PrivateIpAddress,PublicIpAddress]' \
     --output text \
-    --region $REGION | sort)
+    --region $REGION 2>/dev/null | sort)
 
-# Guardar IPs en variables
-MASTER_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-master" | awk '{print $4}')
-MASTER_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-master" | awk '{print $5}')
-WORKER1_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker1" | awk '{print $4}')
-WORKER1_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker1" | awk '{print $5}')
-WORKER2_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker2" | awk '{print $4}')
-WORKER2_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker2" | awk '{print $5}')
-STORAGE_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-storage" | awk '{print $4}')
-STORAGE_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-storage" | awk '{print $5}')
+if [ -z "$INSTANCES_INFO" ]; then
+    echo -e "${YELLOW}⚠ No se puede obtener información automáticamente (restricción de AWS Learner Lab)${NC}"
+    echo -e "${YELLOW}Por favor, obtén las IPs desde la Consola Web de AWS:${NC}"
+    echo "  1. Ve a: https://console.aws.amazon.com/ec2/v2/home?region=$REGION#Instances:"
+    echo "  2. Busca las siguientes instancias por ID y anota sus IPs (Private y Public):"
+    echo ""
+    echo "     bigdata-master:  $MASTER_INSTANCE_ID"
+    echo "     bigdata-worker1: $WORKER1_INSTANCE_ID"
+    echo "     bigdata-worker2: $WORKER2_INSTANCE_ID"
+    echo "     bigdata-storage: $STORAGE_INSTANCE_ID"
+    echo ""
+    echo "  3. Luego edita el archivo cluster-info.txt y reemplaza los placeholders"
+    echo ""
+
+    MASTER_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
+    MASTER_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
+    WORKER1_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
+    WORKER1_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
+    WORKER2_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
+    WORKER2_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
+    STORAGE_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
+    STORAGE_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
+else
+    echo -e "${GREEN}✓ Información obtenida exitosamente${NC}"
+
+    # Guardar IPs en variables
+    MASTER_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-master" | awk '{print $4}')
+    MASTER_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-master" | awk '{print $5}')
+    WORKER1_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker1" | awk '{print $4}')
+    WORKER1_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker1" | awk '{print $5}')
+    WORKER2_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker2" | awk '{print $4}')
+    WORKER2_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker2" | awk '{print $5}')
+    STORAGE_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-storage" | awk '{print $4}')
+    STORAGE_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-storage" | awk '{print $5}')
+fi
 
 # Crear archivo de configuración
 echo -e "${YELLOW}[8/8] Creando archivo de configuración...${NC}"
@@ -248,21 +325,25 @@ Region: $REGION
 # Instances
 Master:
   Name: bigdata-master
+  Instance ID: $MASTER_INSTANCE_ID
   Private IP: $MASTER_PRIVATE_IP
   Public IP: $MASTER_PUBLIC_IP
 
 Worker1:
   Name: bigdata-worker1
+  Instance ID: $WORKER1_INSTANCE_ID
   Private IP: $WORKER1_PRIVATE_IP
   Public IP: $WORKER1_PUBLIC_IP
 
 Worker2:
   Name: bigdata-worker2
+  Instance ID: $WORKER2_INSTANCE_ID
   Private IP: $WORKER2_PRIVATE_IP
   Public IP: $WORKER2_PUBLIC_IP
 
 Storage:
   Name: bigdata-storage
+  Instance ID: $STORAGE_INSTANCE_ID
   Private IP: $STORAGE_PRIVATE_IP
   Public IP: $STORAGE_PUBLIC_IP
 
@@ -301,7 +382,16 @@ echo -e "${GREEN}¡Cluster creado exitosamente!${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo ""
 echo -e "${BLUE}Instancias creadas:${NC}"
-echo "$INSTANCES_INFO" | column -t
+if [ -n "$INSTANCES_INFO" ]; then
+    echo "$INSTANCES_INFO" | column -t
+else
+    echo "  bigdata-master:  $MASTER_INSTANCE_ID"
+    echo "  bigdata-worker1: $WORKER1_INSTANCE_ID"
+    echo "  bigdata-worker2: $WORKER2_INSTANCE_ID"
+    echo "  bigdata-storage: $STORAGE_INSTANCE_ID"
+    echo ""
+    echo -e "${YELLOW}  ⚠ Obtén las IPs desde la consola web de AWS (ver instrucciones arriba)${NC}"
+fi
 echo ""
 echo -e "${BLUE}Próximos pasos:${NC}"
 echo ""

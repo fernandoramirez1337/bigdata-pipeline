@@ -621,10 +621,10 @@ cd /home/user/bigdata-pipeline
 
 ---
 
-## Problema 12: AWS Security Group Bloqueando Puertos HDFS ❌ → ⏳ PENDIENTE
+## Problema 12: NameNode Escuchando Solo en Localhost ❌ → ⏳ PENDIENTE
 
-### Descripción
-Los DataNodes están ejecutándose como procesos pero no pueden registrarse con el NameNode debido a que AWS Security Groups están bloqueando el puerto 9000 (HDFS NameNode RPC).
+### Descripción ACTUALIZADA (Causa Raíz Real Identificada)
+Los DataNodes están ejecutándose como procesos pero no pueden registrarse con el NameNode. Inicialmente se pensó que era un problema de AWS Security Groups, pero el diagnóstico reveló la **verdadera causa raíz**: NameNode está configurado para escuchar solo en `127.0.0.1:9000` (localhost) en lugar de `0.0.0.0:9000` (todas las interfaces).
 
 ### Síntomas
 ```
@@ -647,15 +647,29 @@ bash: connect: Connection refused
 ❌ Port 9000 is NOT reachable
 ```
 
-### Causa Raíz Identificada
-AWS Security Groups actúan como firewalls virtuales y bloquean todo el tráfico inbound por defecto. Se configuraron puertos para:
-- ✅ SSH (22)
-- ✅ Web UIs (8080, 8081, 9870, etc.)
+**Port Binding Discovery (El Smoking Gun 🔍)**:
+```bash
+# Ejecutando netstat en Master node:
+tcp        0      0 127.0.0.1:9000          0.0.0.0:*               LISTEN      43569/java
+                   ^^^^^^^^^^^
+                   ¡Solo localhost!
+```
 
-Pero **FALTARON** los puertos de comunicación interna de HDFS:
-- ❌ **9000**: HDFS NameNode RPC (DataNodes se registran aquí)
-- ❌ **9866**: HDFS DataNode data transfer
-- ❌ **9867**: HDFS DataNode IPC
+### Causa Raíz Identificada (ACTUALIZADA)
+
+**Hipótesis Inicial (INCORRECTA)**: AWS Security Groups bloqueando puerto 9000
+**Diagnóstico Final**: NameNode configurado para escuchar solo en localhost
+
+**El Problema Real**:
+- NameNode escuchando en: `127.0.0.1:9000` (solo localhost)
+- DataNodes intentando conectar a: `172.31.72.49:9000` (IP privada del Master)
+- Resultado: Connection refused (NameNode no acepta conexiones remotas)
+
+**Por qué pasó esto**:
+- Hadoop por defecto (o por configuración) puede bindear NameNode solo a loopback
+- `fs.defaultFS` en core-site.xml define DONDE conectarse, pero NO donde escuchar
+- Para controlar donde NameNode escucha, se necesita `dfs.namenode.rpc-bind-host` en hdfs-site.xml
+- Esta propiedad faltaba o estaba mal configurada
 
 ### Evidencia Diagnóstica
 
@@ -681,59 +695,81 @@ Pero **FALTARON** los puertos de comunicación interna de HDFS:
 
 ### Solución
 
-**Acción Requerida**: Agregar 3 reglas inbound al AWS Security Group
+**Acción Requerida**: Configurar NameNode para escuchar en todas las interfaces (0.0.0.0)
 
-**Paso a paso**:
-1. AWS Console → EC2 → Security Groups
-2. Editar inbound rules del security group
-3. Agregar 3 reglas TCP:
-
-```
-Rule 1: HDFS NameNode RPC
-├─ Port: 9000
-├─ Source: Security Group ID (self) OR 172.31.0.0/16
-└─ Description: HDFS NameNode RPC
-
-Rule 2: HDFS DataNode Data Transfer
-├─ Port: 9866
-├─ Source: Security Group ID (self) OR 172.31.0.0/16
-└─ Description: HDFS DataNode data transfer
-
-Rule 3: HDFS DataNode IPC
-├─ Port: 9867
-├─ Source: Security Group ID (self) OR 172.31.0.0/16
-└─ Description: HDFS DataNode IPC
+**Opción 1 - Script Automatizado (RECOMENDADO)**:
+```bash
+chmod +x infrastructure/scripts/fix-namenode-binding.sh
+./infrastructure/scripts/fix-namenode-binding.sh
 ```
 
-4. Guardar rules
-5. Esperar 1-2 minutos para propagación
-6. Ejecutar script de verificación:
-   ```bash
-   ./infrastructure/scripts/complete-cluster-fix.sh
+Este script:
+1. ✅ Agrega `dfs.namenode.rpc-bind-host = 0.0.0.0` a hdfs-site.xml
+2. ✅ Agrega `dfs.namenode.servicerpc-bind-host = 0.0.0.0`
+3. ✅ Agrega `dfs.namenode.http-bind-host = 0.0.0.0`
+4. ✅ Reinicia NameNode
+5. ✅ Verifica que NameNode escuche en `0.0.0.0:9000` (no `127.0.0.1:9000`)
+6. ✅ Prueba conectividad desde todos los DataNodes
+7. ✅ Reinicia DataNodes automáticamente
+8. ✅ Muestra reporte final de HDFS
+
+**Opción 2 - Fix Manual**:
+1. SSH a Master: `ssh -i ~/.ssh/bigd-key.pem ec2-user@44.210.18.254`
+2. Editar: `sudo vi /opt/bigdata/hadoop/etc/hadoop/hdfs-site.xml`
+3. Agregar antes de `</configuration>`:
+   ```xml
+   <property>
+       <name>dfs.namenode.rpc-bind-host</name>
+       <value>0.0.0.0</value>
+   </property>
+   <property>
+       <name>dfs.namenode.servicerpc-bind-host</name>
+       <value>0.0.0.0</value>
+   </property>
+   <property>
+       <name>dfs.namenode.http-bind-host</name>
+       <value>0.0.0.0</value>
+   </property>
    ```
+4. Reiniciar NameNode:
+   ```bash
+   source /etc/profile.d/bigdata.sh
+   $HADOOP_HOME/bin/hdfs --daemon stop namenode
+   sleep 3
+   $HADOOP_HOME/bin/hdfs --daemon start namenode
+   ```
+5. Verificar: `sudo netstat -tulnp | grep 9000` (debe mostrar `0.0.0.0:9000`)
+6. Reiniciar DataNodes en Worker1, Worker2, Storage
 
-**Script Creado**: `complete-cluster-fix.sh` - Script automatizado que:
-- ✅ Verifica NameNode corriendo y escuchando en puerto 9000
-- ✅ Chequea procesos DataNode
-- ✅ Prueba conectividad de red
-- ✅ Muestra instrucciones detalladas de AWS Security Group
-- ✅ Espera a que usuario agregue las rules
-- ✅ Re-verifica conectividad
-- ✅ Reinicia DataNodes automáticamente
-- ✅ Muestra reporte final de HDFS
+**Archivos Creados**:
+- `infrastructure/scripts/fix-namenode-binding.sh` - Script automatizado de fix
+- `docs/HDFS_NAMENODE_BINDING_FIX.md` - Documentación completa con:
+  - Explicación técnica del problema
+  - Instrucciones paso a paso
+  - Troubleshooting
+  - Por qué 0.0.0.0 es seguro en este contexto
+  - Historia del debugging
 
-**Documentación Creada**: `docs/AWS_SECURITY_GROUP_FIX.md` - Guía completa con:
-- Instrucciones paso a paso con capturas de pantalla
-- Comandos AWS CLI alternativos
-- Troubleshooting detallado
-- Referencia completa de todos los puertos del cluster
+**Nota sobre AWS Security Groups**:
+Después de arreglar el binding:
+- Si DataNodes conectan ✅: AWS Security Groups están bien
+- Si DataNodes no conectan ❌: Ver `docs/AWS_SECURITY_GROUP_FIX.md`
+
+Lo más probable es que Security Groups estén bien y solo sea el problema de binding.
 
 ### Resultado Esperado
 
-Después de agregar las rules de Security Group y ejecutar `complete-cluster-fix.sh`:
+**Paso 1 - Verificar Port Binding Correcto**:
+```bash
+# Antes del fix:
+tcp  0  0  127.0.0.1:9000  0.0.0.0:*  LISTEN  43569/java  ❌
 
+# Después del fix:
+tcp  0  0  0.0.0.0:9000    0.0.0.0:*  LISTEN  <PID>/java  ✅
 ```
-HDFS Cluster Report:
+
+**Paso 2 - HDFS Cluster Operacional**:
+```
 Configured Capacity: 558345948160 (520 GB)
 DFS Used: 73728 (72 KB)
 Live datanodes (3):
@@ -756,27 +792,37 @@ DFS Remaining: 214729687040 (199.97 GB)
 
 ```
 🎉 SUCCESS! ALL 3 DATANODES CONNECTED! 🎉
-Your Big Data Cluster is now 100% OPERATIONAL!
+Your HDFS Cluster is now fully operational!
 ```
 
 ### Estado
-- **Scripts diagnósticos**: ✅ CREADOS
-- **Documentación**: ✅ COMPLETA
-- **AWS Security Group Fix**: ⏳ PENDIENTE (requiere acción manual del usuario)
+- **Causa raíz identificada**: ✅ NameNode binding a localhost solamente
+- **Script de fix**: ✅ CREADO (`fix-namenode-binding.sh`)
+- **Documentación técnica**: ✅ COMPLETA (`HDFS_NAMENODE_BINDING_FIX.md`)
+- **Ejecución del fix**: ⏳ PENDIENTE (requiere ejecutar script)
 - **Verificación post-fix**: ⏳ PENDIENTE
 
 **Archivos creados**:
-- `infrastructure/scripts/complete-cluster-fix.sh` - Script maestro de diagnóstico y fix
+- `infrastructure/scripts/fix-namenode-binding.sh` - Fix automatizado del binding
+- `infrastructure/scripts/complete-cluster-fix.sh` - Script de diagnóstico inicial
 - `infrastructure/scripts/check-namenode-port.sh` - Verifica NameNode
-- `docs/AWS_SECURITY_GROUP_FIX.md` - Documentación completa
+- `docs/HDFS_NAMENODE_BINDING_FIX.md` - Documentación técnica completa
+- `docs/AWS_SECURITY_GROUP_FIX.md` - Documentación para caso de Security Groups
 - Actualizados: `verify-ports-and-restart.sh`, `deep-debug-datanodes.sh`, `troubleshoot-datanodes.sh`
 
+**Lección Aprendida - Proceso de Debugging**:
+1. Hipótesis inicial: AWS Security Groups ❌
+2. Ejecutar `complete-cluster-fix.sh` para diagnóstico
+3. Análisis de `netstat` output reveló: NameNode en `127.0.0.1:9000` ✅
+4. Pivote a verdadera causa raíz: Configuración de Hadoop binding
+5. Crear script específico: `fix-namenode-binding.sh`
+
 **Commits relacionados**:
-- a40caaf: Add final diagnostic scripts - found root cause: AWS Security Group blocking port 9000
+- 714729f: Add comprehensive AWS Security Group fix and documentation (diagnóstico inicial)
+- a40caaf: Add final diagnostic scripts - found root cause candidate
 - d11bf36: Add comprehensive DataNode debugging script to find logs and connection issues
 - 4455968: Add script to create missing Hadoop logs directory and restart DataNodes
 - 7ad26ce: Add DataNode troubleshooting script to debug startup failures
-- afe3da8: Add script to check DataNode connection logs and status
 
 ---
 

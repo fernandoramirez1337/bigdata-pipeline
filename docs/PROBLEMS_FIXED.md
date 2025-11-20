@@ -619,8 +619,169 @@ cd /home/user/bigdata-pipeline
 
 ---
 
-**Fecha de revisión**: 20 de Noviembre 2025, 21:15 UTC
+---
+
+## Problema 12: AWS Security Group Bloqueando Puertos HDFS ❌ → ⏳ PENDIENTE
+
+### Descripción
+Los DataNodes están ejecutándose como procesos pero no pueden registrarse con el NameNode debido a que AWS Security Groups están bloqueando el puerto 9000 (HDFS NameNode RPC).
+
+### Síntomas
+```
+HDFS Cluster Report:
+Configured Capacity: 0 (0 B)
+DFS Used: 24576 (24 KB)
+Live datanodes (0):
+```
+
+**DataNode Logs**:
+```
+INFO ipc.Client: Retrying connect to server: master-node/172.31.72.49:9000. Already tried 0 time(s)
+INFO ipc.Client: Retrying connect to server: master-node/172.31.72.49:9000. Already tried 1 time(s)
+```
+
+**Network Test**:
+```bash
+bash -c 'cat < /dev/null > /dev/tcp/172.31.72.49/9000'
+bash: connect: Connection refused
+❌ Port 9000 is NOT reachable
+```
+
+### Causa Raíz Identificada
+AWS Security Groups actúan como firewalls virtuales y bloquean todo el tráfico inbound por defecto. Se configuraron puertos para:
+- ✅ SSH (22)
+- ✅ Web UIs (8080, 8081, 9870, etc.)
+
+Pero **FALTARON** los puertos de comunicación interna de HDFS:
+- ❌ **9000**: HDFS NameNode RPC (DataNodes se registran aquí)
+- ❌ **9866**: HDFS DataNode data transfer
+- ❌ **9867**: HDFS DataNode IPC
+
+### Evidencia Diagnóstica
+
+**Verificaciones realizadas**:
+1. ✅ NameNode process running (`jps | grep NameNode`)
+2. ✅ NameNode listening on port 9000 (`netstat -tulnp | grep 9000`)
+3. ✅ DataNode processes running on all 3 nodes (Worker1, Worker2, Storage)
+4. ✅ HDFS configuration correct (`hdfs://172.31.72.49:9000`)
+5. ❌ Network connectivity BLOCKED from all DataNodes to NameNode:9000
+
+**Scripts de Diagnóstico Creados**:
+- `check-namenode-port.sh` - Verifica que NameNode escuche en puerto 9000
+- `deep-debug-datanodes.sh` - Analiza logs y conectividad de DataNodes
+- `troubleshoot-datanodes.sh` - Diagnóstico completo
+- `verify-ports-and-restart.sh` - Prueba conectividad y reinicia DataNodes
+
+### Impacto
+- **Crítico**: DataNodes no pueden registrarse con NameNode
+- HDFS muestra 0 B de capacidad (no reconoce los ~500 GB disponibles)
+- No se pueden almacenar datos en HDFS
+- Pipeline de datos bloqueado
+- **Cluster completado al 95%** - solo falta este problema de red
+
+### Solución
+
+**Acción Requerida**: Agregar 3 reglas inbound al AWS Security Group
+
+**Paso a paso**:
+1. AWS Console → EC2 → Security Groups
+2. Editar inbound rules del security group
+3. Agregar 3 reglas TCP:
+
+```
+Rule 1: HDFS NameNode RPC
+├─ Port: 9000
+├─ Source: Security Group ID (self) OR 172.31.0.0/16
+└─ Description: HDFS NameNode RPC
+
+Rule 2: HDFS DataNode Data Transfer
+├─ Port: 9866
+├─ Source: Security Group ID (self) OR 172.31.0.0/16
+└─ Description: HDFS DataNode data transfer
+
+Rule 3: HDFS DataNode IPC
+├─ Port: 9867
+├─ Source: Security Group ID (self) OR 172.31.0.0/16
+└─ Description: HDFS DataNode IPC
+```
+
+4. Guardar rules
+5. Esperar 1-2 minutos para propagación
+6. Ejecutar script de verificación:
+   ```bash
+   ./infrastructure/scripts/complete-cluster-fix.sh
+   ```
+
+**Script Creado**: `complete-cluster-fix.sh` - Script automatizado que:
+- ✅ Verifica NameNode corriendo y escuchando en puerto 9000
+- ✅ Chequea procesos DataNode
+- ✅ Prueba conectividad de red
+- ✅ Muestra instrucciones detalladas de AWS Security Group
+- ✅ Espera a que usuario agregue las rules
+- ✅ Re-verifica conectividad
+- ✅ Reinicia DataNodes automáticamente
+- ✅ Muestra reporte final de HDFS
+
+**Documentación Creada**: `docs/AWS_SECURITY_GROUP_FIX.md` - Guía completa con:
+- Instrucciones paso a paso con capturas de pantalla
+- Comandos AWS CLI alternativos
+- Troubleshooting detallado
+- Referencia completa de todos los puertos del cluster
+
+### Resultado Esperado
+
+Después de agregar las rules de Security Group y ejecutar `complete-cluster-fix.sh`:
+
+```
+HDFS Cluster Report:
+Configured Capacity: 558345948160 (520 GB)
+DFS Used: 73728 (72 KB)
+Live datanodes (3):
+
+Name: 172.31.15.51:9866 (worker1-node)
+Configured Capacity: 171798691840 (160 GB)
+DFS Used: 24576 (24 KB)
+DFS Remaining: 171780014080 (160 GB)
+
+Name: 172.31.7.120:9866 (worker2-node)
+Configured Capacity: 171798691840 (160 GB)
+DFS Used: 24576 (24 KB)
+DFS Remaining: 171780014080 (160 GB)
+
+Name: 172.31.11.89:9866 (storage-node)
+Configured Capacity: 214748364800 (200 GB)
+DFS Used: 24576 (24 KB)
+DFS Remaining: 214729687040 (199.97 GB)
+```
+
+```
+🎉 SUCCESS! ALL 3 DATANODES CONNECTED! 🎉
+Your Big Data Cluster is now 100% OPERATIONAL!
+```
+
+### Estado
+- **Scripts diagnósticos**: ✅ CREADOS
+- **Documentación**: ✅ COMPLETA
+- **AWS Security Group Fix**: ⏳ PENDIENTE (requiere acción manual del usuario)
+- **Verificación post-fix**: ⏳ PENDIENTE
+
+**Archivos creados**:
+- `infrastructure/scripts/complete-cluster-fix.sh` - Script maestro de diagnóstico y fix
+- `infrastructure/scripts/check-namenode-port.sh` - Verifica NameNode
+- `docs/AWS_SECURITY_GROUP_FIX.md` - Documentación completa
+- Actualizados: `verify-ports-and-restart.sh`, `deep-debug-datanodes.sh`, `troubleshoot-datanodes.sh`
+
+**Commits relacionados**:
+- a40caaf: Add final diagnostic scripts - found root cause: AWS Security Group blocking port 9000
+- d11bf36: Add comprehensive DataNode debugging script to find logs and connection issues
+- 4455968: Add script to create missing Hadoop logs directory and restart DataNodes
+- 7ad26ce: Add DataNode troubleshooting script to debug startup failures
+- afe3da8: Add script to check DataNode connection logs and status
+
+---
+
+**Fecha de revisión**: 20 de Noviembre 2025, 23:45 UTC
 **Revisor**: Claude (AI Assistant)
-**Archivos comprometidos**: 12 (10 anteriores + 2 nuevos scripts de finalización)
-**Commits realizados**: 4
-**Estado del Cluster**: ✅ LISTO PARA INICIALIZACIÓN FINAL
+**Archivos comprometidos**: 16 (12 anteriores + 4 scripts diagnósticos)
+**Commits realizados**: 9
+**Estado del Cluster**: ⏳ 95% COMPLETO - Esperando fix de AWS Security Group

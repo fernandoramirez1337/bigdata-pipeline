@@ -113,7 +113,8 @@ if [ -z "$SG_ID" ]; then
         --protocol tcp \
         --port 22 \
         --cidr $MY_IP \
-        --region $REGION
+        --region $REGION \
+        --output text > /dev/null
     echo "  ✓ SSH (22) desde $MY_IP"
 
     # Web UIs públicos
@@ -122,7 +123,8 @@ if [ -z "$SG_ID" ]; then
         --protocol tcp \
         --port 8080-8088 \
         --cidr 0.0.0.0/0 \
-        --region $REGION
+        --region $REGION \
+        --output text > /dev/null
     echo "  ✓ Web UIs (8080-8088) público"
 
     aws ec2 authorize-security-group-ingress \
@@ -130,7 +132,8 @@ if [ -z "$SG_ID" ]; then
         --protocol tcp \
         --port 9870 \
         --cidr 0.0.0.0/0 \
-        --region $REGION
+        --region $REGION \
+        --output text > /dev/null
     echo "  ✓ HDFS Web UI (9870) público"
 
     # Puertos internos - solo VPC
@@ -140,7 +143,8 @@ if [ -z "$SG_ID" ]; then
             --protocol tcp \
             --port $PORT \
             --cidr $VPC_CIDR \
-            --region $REGION
+            --region $REGION \
+            --output text > /dev/null
         echo "  ✓ Puerto $PORT desde VPC"
     done
 
@@ -149,7 +153,8 @@ if [ -z "$SG_ID" ]; then
         --group-id $SG_ID \
         --protocol all \
         --source-group $SG_ID \
-        --region $REGION
+        --region $REGION \
+        --output text > /dev/null
     echo "  ✓ Todo el tráfico entre nodos del cluster"
 
     echo -e "${GREEN}✓ Reglas de firewall configuradas${NC}"

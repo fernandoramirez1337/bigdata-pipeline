@@ -25,12 +25,12 @@ JAVA_VERSION="11"
 echo -e "${GREEN}[1/8] Updating system packages...${NC}"
 sudo yum update -y
 
-# Instalar Java
+# Instalar Java (Amazon Corretto 11 para Amazon Linux 2023)
 echo -e "${GREEN}[2/8] Installing Java ${JAVA_VERSION}...${NC}"
-sudo yum install -y java-${JAVA_VERSION}-openjdk java-${JAVA_VERSION}-openjdk-devel
+sudo yum install -y java-11-amazon-corretto java-11-amazon-corretto-devel
 
 # Configurar JAVA_HOME
-echo "export JAVA_HOME=/usr/lib/jvm/java-${JAVA_VERSION}-openjdk" | sudo tee -a /etc/profile.d/bigdata.sh
+echo "export JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto" | sudo tee -a /etc/profile.d/bigdata.sh
 echo 'export PATH=$JAVA_HOME/bin:$PATH' | sudo tee -a /etc/profile.d/bigdata.sh
 source /etc/profile.d/bigdata.sh
 

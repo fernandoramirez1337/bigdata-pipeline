@@ -31,10 +31,10 @@ echo -e "${GREEN}[1/3] Installing PostgreSQL 15...${NC}"
 # Install PostgreSQL 15 (postgresql15-devel is optional and may not be available)
 sudo dnf install -y postgresql15-server postgresql15-contrib || true
 
-# Initialize PostgreSQL
+# Initialize PostgreSQL 15
 if [ ! -d "/var/lib/pgsql/15/data/base" ]; then
-    echo -e "${YELLOW}Initializing PostgreSQL database...${NC}"
-    sudo postgresql-setup --initdb
+    echo -e "${YELLOW}Initializing PostgreSQL 15 database...${NC}"
+    sudo /usr/bin/postgresql-15-setup initdb
 fi
 
 # Configure PostgreSQL for MD5 authentication

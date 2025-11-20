@@ -33,7 +33,21 @@ Este proyecto implementa un pipeline de Big Data end-to-end que procesa datos hi
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Tecnologías
+## Características Principales
+
+### 🚀 Deployment Automatizado
+- **create-cluster.sh**: Crea 4 EC2 con Security Group en 5 minutos
+- **orchestrate-cluster.sh**: Instala todo el software con un comando
+- Configuración automática de firewall y red
+- Genera archivo con IPs y comandos SSH listos
+
+### 📊 Pipeline Completo
+- **Streaming**: Procesamiento en tiempo real con Flink (1-minute windows)
+- **Batch**: Análisis históricos diarios con Spark
+- **Storage**: HDFS distribuido + PostgreSQL + S3
+- **Visualization**: Dashboards interactivos con Superset
+
+### 🔧 Tecnologías
 
 - **Streaming**: Apache Kafka 3.6.0, Apache Flink 1.18.0
 - **Batch**: Apache Spark 3.5.0
@@ -94,32 +108,37 @@ bigdata-pipeline/
 
 ## Quick Start
 
-### 1. Configurar EC2 Instances
-
-Lanzar 4 instancias EC2 en AWS Academy:
-- 1x t3.large (Master)
-- 2x t3.xlarge (Workers)
-- 1x t3.large (Storage)
-
-Ver detalles en [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
-
-### 2. Instalación Automatizada
+### Opción A: Automatizada (Recomendada) ⭐
 
 ```bash
-# Clonar repositorio
+# 1. Clonar repositorio
 git clone https://github.com/fernandoramirez1337/bigdata-pipeline.git
-cd bigdata-pipeline
+cd bigdata-pipeline/infrastructure/scripts
 
-# Actualizar IPs en orchestrate-cluster.sh
-vim infrastructure/scripts/orchestrate-cluster.sh
+# 2. Crear 4 EC2 instances automáticamente
+export KEY_NAME="bigd-key"
+export MY_IP="$(curl -s ifconfig.me)/32"
+./create-cluster.sh
 
-# Ejecutar setup
-chmod +x infrastructure/scripts/*.sh
-./infrastructure/scripts/orchestrate-cluster.sh setup-all
+# 3. Configurar /etc/hosts en todas las instancias
+# (Copiar comandos de cluster-info.txt generado)
 
-# Iniciar cluster
-./infrastructure/scripts/orchestrate-cluster.sh start-cluster
+# 4. Actualizar IPs en orchestrate-cluster.sh
+vim orchestrate-cluster.sh
+# Actualizar MASTER_IP, WORKER1_IP, WORKER2_IP, STORAGE_IP
+
+# 5. Instalar software (30-45 min)
+./orchestrate-cluster.sh setup-all
+
+# 6. Iniciar cluster
+./orchestrate-cluster.sh start-cluster
 ```
+
+**Ver tutorial completo**: [END_TO_END_EXAMPLE.md](END_TO_END_EXAMPLE.md)
+
+### Opción B: Manual
+
+Ver detalles en [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
 
 ### 3. Desplegar Pipeline
 
@@ -194,9 +213,17 @@ crontab -e
 
 ## Documentación
 
-- [Plan de Arquitectura](PLAN_ARQUITECTURA.md) - Diseño completo del sistema
-- [Guía de Despliegue](docs/DEPLOYMENT_GUIDE.md) - Instalación paso a paso
-- [Queries SQL](visualization/sql/sample-queries.sql) - Queries para dashboards
+### Guías Principales
+
+- 🚀 **[END_TO_END_EXAMPLE.md](END_TO_END_EXAMPLE.md)** - Tutorial completo del zero al dashboard (3-4 horas)
+- 📋 **[PLAN_ARQUITECTURA.md](PLAN_ARQUITECTURA.md)** - Diseño completo del sistema (20+ páginas)
+- 📖 **[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Instalación detallada paso a paso
+- ⚡ **[QUICK_START_4EC2.md](docs/QUICK_START_4EC2.md)** - Checklist rápido de deployment
+
+### Recursos Técnicos
+
+- **[Scripts README](infrastructure/scripts/README.md)** - Documentación de scripts de infraestructura
+- **[Queries SQL](visualization/sql/sample-queries.sql)** - 18+ queries para dashboards de Superset
 
 ## Troubleshooting
 

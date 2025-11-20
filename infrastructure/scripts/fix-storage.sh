@@ -34,7 +34,12 @@ sudo dnf install -y postgresql15-server postgresql15-contrib || true
 # Initialize PostgreSQL 15
 if [ ! -d "/var/lib/pgsql/15/data/base" ]; then
     echo -e "${YELLOW}Initializing PostgreSQL 15 database...${NC}"
-    sudo /usr/bin/postgresql-15-setup initdb
+    # Method for Amazon Linux 2023
+    sudo PGSETUP_INITDB_OPTIONS="--encoding=UTF8" /usr/pgsql-15/bin/postgresql-15-setup initdb || \
+    sudo postgresql-setup --initdb --unit postgresql-15 || \
+    sudo -u postgres /usr/bin/initdb -D /var/lib/pgsql/15/data
+else
+    echo -e "${GREEN}PostgreSQL 15 already initialized${NC}"
 fi
 
 # Configure PostgreSQL for MD5 authentication

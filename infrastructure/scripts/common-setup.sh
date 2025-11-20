@@ -41,7 +41,6 @@ java -version
 echo -e "${GREEN}[3/8] Installing essential utilities...${NC}"
 sudo yum install -y \
     wget \
-    curl \
     tar \
     gzip \
     git \

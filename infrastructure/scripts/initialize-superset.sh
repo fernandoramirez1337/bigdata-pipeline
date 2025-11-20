@@ -54,6 +54,18 @@ fi
 echo -e "${GREEN}Activating Superset virtual environment...${NC}"
 source /opt/bigdata/superset-venv/bin/activate
 
+# Fix marshmallow dependency issue if needed
+echo -e "${YELLOW}Checking marshmallow version...${NC}"
+MARSHMALLOW_VERSION=$(pip show marshmallow | grep Version | awk '{print $2}')
+echo "Current version: $MARSHMALLOW_VERSION"
+
+# Superset 3.1.0 requires marshmallow < 3.20 due to 'minLength' parameter removal
+if [[ "$MARSHMALLOW_VERSION" > "3.20" ]] || [[ "$MARSHMALLOW_VERSION" == "3.20"* ]]; then
+    echo -e "${YELLOW}Installing compatible marshmallow version...${NC}"
+    pip install 'marshmallow>=3.18.0,<3.20.0' --force-reinstall -q
+    echo -e "${GREEN}✅ Marshmallow downgraded to compatible version${NC}"
+fi
+
 # Set Flask app and config path
 export FLASK_APP=superset
 export SUPERSET_CONFIG_PATH=/opt/bigdata/superset/superset_config.py

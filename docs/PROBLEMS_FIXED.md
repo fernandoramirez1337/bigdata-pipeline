@@ -469,6 +469,44 @@ Actualizado `initialize-superset.sh` para:
 
 ---
 
+## Problema 11: Superset Marshmallow Dependency Conflict ❌ → ✅
+
+### Descripción
+Superset 3.1.0 falló al inicializar debido a incompatibilidad con marshmallow >= 3.20.
+
+### Síntomas
+```
+TypeError: __init__() got an unexpected keyword argument 'minLength'
+File "/opt/bigdata/superset-venv/lib64/python3.9/site-packages/marshmallow/fields.py", line 711, in __init__
+```
+
+### Causa Raíz
+- Superset 3.1.0 usa el parámetro `minLength` en marshmallow fields
+- Marshmallow 3.20+ removió este parámetro (breaking change)
+- El venv de Superset instaló marshmallow 3.20+ por defecto
+
+### Impacto
+- `superset db upgrade` falla antes de ejecutarse
+- Superset no puede inicializarse
+- Todo el proceso de finalización bloqueado
+
+### Solución
+Actualizado `initialize-superset.sh` para:
+- Detectar versión de marshmallow instalada
+- Downgrade automático a marshmallow 3.18.x < 3.20 si es necesario
+- Usar `--force-reinstall` para asegurar versión compatible
+
+**Comando de fix**:
+```bash
+pip install 'marshmallow>=3.18.0,<3.20.0' --force-reinstall
+```
+
+**Archivo actualizado**: `infrastructure/scripts/initialize-superset.sh`
+**Archivo creado**: `infrastructure/scripts/fix-superset-dependencies.sh`
+**Estado**: ✅ COMPLETADO
+
+---
+
 ## Estado Final del Cluster
 
 ### ✅ Instalaciones Completadas

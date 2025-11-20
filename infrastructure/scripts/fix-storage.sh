@@ -34,10 +34,23 @@ sudo dnf install -y postgresql15-server postgresql15-contrib || true
 # Initialize PostgreSQL 15
 if [ ! -d "/var/lib/pgsql/15/data/base" ]; then
     echo -e "${YELLOW}Initializing PostgreSQL 15 database...${NC}"
-    # Method for Amazon Linux 2023
-    sudo PGSETUP_INITDB_OPTIONS="--encoding=UTF8" /usr/pgsql-15/bin/postgresql-15-setup initdb || \
-    sudo postgresql-setup --initdb --unit postgresql-15 || \
-    sudo -u postgres /usr/bin/initdb -D /var/lib/pgsql/15/data
+
+    # Check if directory exists but is incomplete
+    if [ -d "/var/lib/pgsql/15/data" ] && [ -z "$(ls -A /var/lib/pgsql/15/data 2>/dev/null)" ]; then
+        echo -e "${YELLOW}Removing incomplete initialization...${NC}"
+        sudo rm -rf /var/lib/pgsql/15/data
+    fi
+
+    # Method for Amazon Linux 2023 - try multiple approaches
+    if sudo PGSETUP_INITDB_OPTIONS="--encoding=UTF8" /usr/pgsql-15/bin/postgresql-15-setup initdb 2>/dev/null; then
+        echo -e "${GREEN}Initialized with postgresql-15-setup${NC}"
+    elif sudo postgresql-setup --initdb --unit postgresql-15 2>/dev/null; then
+        echo -e "${GREEN}Initialized with postgresql-setup${NC}"
+    elif sudo -u postgres /usr/bin/initdb -D /var/lib/pgsql/15/data 2>/dev/null; then
+        echo -e "${GREEN}Initialized with initdb directly${NC}"
+    else
+        echo -e "${YELLOW}Directory may already contain data, continuing...${NC}"
+    fi
 else
     echo -e "${GREEN}PostgreSQL 15 already initialized${NC}"
 fi

@@ -18,12 +18,45 @@ echo "========================================="
 
 cd /opt/bigdata/superset
 
+# Generate secure configuration
+echo -e "${GREEN}Generating secure Superset configuration...${NC}"
+
+# Generate SECRET_KEY
+SECRET_KEY=$(openssl rand -base64 42)
+
+# Create superset_config.py if it doesn't exist
+if [ ! -f superset_config.py ]; then
+    cat > superset_config.py <<EOF
+# Superset Configuration File
+SECRET_KEY = '${SECRET_KEY}'
+SQLALCHEMY_DATABASE_URI = 'postgresql://bigdata:bigdata123@localhost:5432/superset'
+FAB_UPDATE_PERMS = True
+AUTH_TYPE = 1
+SUPERSET_WEBSERVER_ADDRESS = '0.0.0.0'
+SUPERSET_WEBSERVER_PORT = 8088
+SUPERSET_WEBSERVER_TIMEOUT = 300
+ROW_LIMIT = 50000
+ENABLE_CORS = True
+CORS_OPTIONS = {
+    'supports_credentials': True,
+    'allow_headers': ['*'],
+    'resources': ['*'],
+    'origins': ['*']
+}
+EOF
+    chmod 640 superset_config.py
+    echo -e "${GREEN}✅ Superset configuration created${NC}"
+else
+    echo -e "${YELLOW}Using existing superset_config.py${NC}"
+fi
+
 # Activate virtual environment
 echo -e "${GREEN}Activating Superset virtual environment...${NC}"
 source /opt/bigdata/superset-venv/bin/activate
 
-# Set Flask app
+# Set Flask app and config path
 export FLASK_APP=superset
+export SUPERSET_CONFIG_PATH=/opt/bigdata/superset/superset_config.py
 
 # Verify PostgreSQL connection
 echo -e "${YELLOW}Verifying PostgreSQL connection...${NC}"
@@ -69,5 +102,6 @@ echo ""
 echo "To start Superset:"
 echo "  cd /opt/bigdata/superset"
 echo "  source /opt/bigdata/superset-venv/bin/activate"
+echo "  export SUPERSET_CONFIG_PATH=/opt/bigdata/superset/superset_config.py"
 echo "  superset run -h 0.0.0.0 -p 8088 --with-threads"
 echo ""

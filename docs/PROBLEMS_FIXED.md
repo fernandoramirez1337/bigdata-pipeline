@@ -435,6 +435,40 @@ PostgreSQL 15.8 on x86_64-amazon-linux-gnu
 
 ---
 
+## Problema 10: Superset SECRET_KEY Inseguro ❌ → ✅
+
+### Descripción
+Al intentar inicializar Superset, el sistema rechazó el inicio debido a un SECRET_KEY por defecto inseguro.
+
+### Síntomas
+```
+WARNING
+A Default SECRET_KEY was detected, please use superset_config.py to override it.
+Refusing to start due to insecure SECRET_KEY
+```
+
+### Impacto
+- Superset no puede inicializarse
+- `superset db upgrade` falla antes de ejecutarse
+- Admin user no puede ser creado
+
+### Solución
+Actualizado `initialize-superset.sh` para:
+- Generar SECRET_KEY seguro con `openssl rand -base64 42`
+- Crear `superset_config.py` con configuración completa:
+  - SECRET_KEY generado
+  - SQLALCHEMY_DATABASE_URI para PostgreSQL
+  - Configuración de WebServer (0.0.0.0:8088)
+  - CORS habilitado para acceso remoto
+  - Timeouts y límites configurados
+- Exportar `SUPERSET_CONFIG_PATH` antes de ejecutar comandos
+
+**Archivo actualizado**: `infrastructure/scripts/initialize-superset.sh`
+**Archivo creado**: `infrastructure/scripts/configure-superset.sh` (standalone config)
+**Estado**: ✅ COMPLETADO
+
+---
+
 ## Estado Final del Cluster
 
 ### ✅ Instalaciones Completadas

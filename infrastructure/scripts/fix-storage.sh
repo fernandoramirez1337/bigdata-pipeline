@@ -28,8 +28,8 @@ echo "Storage IP: $STORAGE_IP"
 #==============================================================================
 echo -e "${GREEN}[1/3] Installing PostgreSQL 15...${NC}"
 
-# Install PostgreSQL 15
-sudo dnf install -y postgresql15-server postgresql15-contrib postgresql15-devel
+# Install PostgreSQL 15 (postgresql15-devel is optional and may not be available)
+sudo dnf install -y postgresql15-server postgresql15-contrib || true
 
 # Initialize PostgreSQL
 if [ ! -d "/var/lib/pgsql/15/data/base" ]; then

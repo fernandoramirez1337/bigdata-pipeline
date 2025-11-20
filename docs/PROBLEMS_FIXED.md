@@ -405,7 +405,150 @@ cd bigdata-pipeline
 
 ---
 
-**Fecha de revisión**: 20 de Noviembre 2025, 20:45 UTC
+## Problema 9: PostgreSQL Configuración del Directorio de Datos ❌ → ✅
+
+### Descripción
+El script `fix-storage.sh` configuraba PostgreSQL en `/var/lib/pgsql/15/data` pero el servicio real estaba usando `/var/lib/pgsql/data`.
+
+### Síntomas
+```
+psql: error: FATAL: Ident authentication failed for user "bigdata"
+```
+- El archivo `pg_hba.conf` correcto no estaba siendo usado
+- PostgreSQL usaba autenticación ident en lugar de MD5
+
+### Solución
+Creado `quick-fix-postgres.sh` que:
+- Detecta dinámicamente el directorio PGDATA real usando systemctl
+- Configura MD5 authentication en el archivo correcto
+- Reinicia PostgreSQL y verifica la conexión
+
+**Resultado**:
+```bash
+PostgreSQL is using: /var/lib/pgsql/data
+✅ PostgreSQL authentication fixed!
+PostgreSQL 15.8 on x86_64-amazon-linux-gnu
+```
+
+**Archivo creado**: `infrastructure/scripts/quick-fix-postgres.sh`
+**Estado**: ✅ COMPLETADO
+
+---
+
+## Estado Final del Cluster
+
+### ✅ Instalaciones Completadas
+
+**Master Node (44.210.18.254)**:
+- ✅ Zookeeper 3.8.3
+- ✅ Kafka 3.6.0
+- ✅ Flink 1.18.0 JobManager
+- ✅ Spark 3.5.0 Master
+- ✅ Hadoop 3.3.6 NameNode (formatted)
+
+**Worker1 Node (44.221.77.132)**:
+- ✅ Flink 1.18.0 TaskManager
+- ✅ Spark 3.5.0 Worker
+- ✅ Hadoop 3.3.6 DataNode
+
+**Worker2 Node (3.219.215.11)**:
+- ✅ Flink 1.18.0 TaskManager
+- ✅ Spark 3.5.0 Worker
+- ✅ Hadoop 3.3.6 DataNode
+
+**Storage Node (98.88.249.180)**:
+- ✅ PostgreSQL 15.8 (configurado con MD5 auth)
+- ✅ Apache Superset 3.1.0 (venv creado)
+- ✅ Hadoop 3.3.6 DataNode
+- ✅ Databases: superset, taxi_analytics
+- ✅ Usuario: bigdata / bigdata123
+
+---
+
+## Scripts Creados para Finalización
+
+### 1. initialize-superset.sh
+**Propósito**: Inicializar Apache Superset con PostgreSQL
+**Acciones**:
+- Verifica conexión a PostgreSQL
+- Ejecuta `superset db upgrade`
+- Crea usuario admin
+- Inicializa Superset
+
+**Uso**:
+```bash
+# Se ejecuta automáticamente con finalize-cluster.sh
+# O manualmente en Storage node:
+ssh ec2-user@98.88.249.180
+bash initialize-superset.sh
+```
+
+### 2. finalize-cluster.sh ⭐
+**Propósito**: Finalizar setup completo del cluster
+**Acciones**:
+1. Inicializa Superset en Storage node
+2. Inicia todos los servicios del cluster en orden:
+   - Zookeeper → Kafka
+   - HDFS (NameNode + DataNodes)
+   - PostgreSQL
+   - Spark (Master + Workers)
+   - Flink (JobManager + TaskManagers)
+3. Crea directorios HDFS necesarios
+4. Verifica que todos los servicios estén running
+
+**Uso**:
+```bash
+cd /home/user/bigdata-pipeline
+./infrastructure/scripts/finalize-cluster.sh
+```
+
+---
+
+## Próximos Pasos - ACTUALIZADO
+
+### ✅ Completados
+1. ✅ Todas las instalaciones de software completadas
+2. ✅ PostgreSQL configurado correctamente
+3. ✅ Scripts de inicialización creados
+
+### ⏳ Siguientes Acciones
+1. **Ejecutar finalize-cluster.sh**:
+   ```bash
+   ./infrastructure/scripts/finalize-cluster.sh
+   ```
+   Este script hará:
+   - Inicializar Superset
+   - Iniciar todos los servicios
+   - Verificar el cluster
+
+2. **Iniciar Superset Web Server**:
+   ```bash
+   ssh -i ~/.ssh/bigd-key.pem ec2-user@98.88.249.180
+   cd /opt/bigdata/superset
+   source /opt/bigdata/superset-venv/bin/activate
+   superset run -h 0.0.0.0 -p 8088 --with-threads &
+   ```
+
+3. **Crear Kafka Topic**:
+   ```bash
+   ssh -i ~/.ssh/bigd-key.pem ec2-user@44.210.18.254
+   kafka-topics.sh --create --topic taxi-trips \
+     --bootstrap-server localhost:9092 \
+     --partitions 3 --replication-factor 1
+   ```
+
+4. **Verificar Web UIs**:
+   - HDFS: http://44.210.18.254:9870
+   - Spark: http://44.210.18.254:8080
+   - Flink: http://44.210.18.254:8081
+   - Superset: http://98.88.249.180:8088
+
+5. **Deploy Data Producer y Processing Jobs**
+
+---
+
+**Fecha de revisión**: 20 de Noviembre 2025, 21:15 UTC
 **Revisor**: Claude (AI Assistant)
-**Archivos comprometidos**: 10 (7 anteriores + 3 nuevos scripts)
-**Commits realizados**: 3 (+ 1 pendiente)
+**Archivos comprometidos**: 12 (10 anteriores + 2 nuevos scripts de finalización)
+**Commits realizados**: 4
+**Estado del Cluster**: ✅ LISTO PARA INICIALIZACIÓN FINAL

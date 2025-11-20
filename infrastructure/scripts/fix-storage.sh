@@ -70,14 +70,16 @@ sudo sed -i "s/#port = 5432/port = 5432/g" /var/lib/pgsql/15/data/postgresql.con
 
 # Start and enable PostgreSQL
 echo -e "${GREEN}Starting PostgreSQL service...${NC}"
-sudo systemctl start postgresql-15
-sudo systemctl enable postgresql-15
+# Try different service names
+sudo systemctl start postgresql.service || sudo systemctl start postgresql-15.service || true
+sudo systemctl enable postgresql.service || sudo systemctl enable postgresql-15.service || true
 
 # Wait for PostgreSQL to start
 sleep 5
 
 # Check status
-sudo systemctl status postgresql-15 --no-pager | head -10
+sudo systemctl status postgresql.service --no-pager | head -10 || \
+sudo systemctl status postgresql-15.service --no-pager | head -10 || true
 
 #==============================================================================
 # CREATE DATABASE AND USER

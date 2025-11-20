@@ -1,0 +1,102 @@
+# Data Producer Configuration
+
+# Kafka Configuration
+kafka:
+  bootstrap_servers:
+    - "localhost:9092"  # Change to Master IP when deploying
+  topic: "taxi-trips-stream"
+  compression_type: "snappy"
+  batch_size: 16384
+  linger_ms: 10
+  acks: 1
+
+# Dataset Configuration
+dataset:
+  # Source type: 's3', 'local', or 'url'
+  source_type: "s3"
+
+  # S3 configuration
+  s3:
+    bucket: "bigdata-taxi-dataset"
+    prefix: "nyc-taxi/"
+    region: "us-east-1"
+
+  # Local configuration
+  local:
+    path: "/data/taxi-dataset/"
+    pattern: "*.parquet"
+
+  # Months to process (format: YYYY-MM)
+  # For 12 months starting from January 2015
+  months:
+    - "2015-01"
+    - "2015-02"
+    - "2015-03"
+    - "2015-04"
+    - "2015-05"
+    - "2015-06"
+    - "2015-07"
+    - "2015-08"
+    - "2015-09"
+    - "2015-10"
+    - "2015-11"
+    - "2015-12"
+
+# Replay Configuration
+replay:
+  # Speed multiplier (1000 = 1000x faster than real time)
+  # 1 day in real time = ~86 seconds at 1000x
+  speed_multiplier: 1000
+
+  # Records per second to produce (rate limiting)
+  # Set to 0 for unlimited
+  max_records_per_second: 1000
+
+  # Add random jitter to simulate real-world variability
+  jitter_percentage: 10
+
+  # Mode: 'once' or 'loop'
+  # once: Process dataset once and exit
+  # loop: Continuously loop through dataset
+  mode: "loop"
+
+  # Start from beginning or specific timestamp
+  start_timestamp: null  # YYYY-MM-DD HH:MM:SS or null for beginning
+
+# Data Processing
+processing:
+  # Batch size for reading from source
+  read_batch_size: 10000
+
+  # Filter invalid records
+  filter_invalid: true
+
+  # Add enrichment fields
+  enrich:
+    producer_timestamp: true
+    partition_key: "pickup_zone"  # Use pickup zone for partitioning
+
+# Zone Mapping Configuration
+zones:
+  # Simplified zone mapping based on lat/lon
+  # Zone grid: divide NYC into grid cells
+  grid:
+    lat_min: 40.5
+    lat_max: 41.0
+    lon_min: -74.3
+    lon_max: -73.7
+    cell_size: 0.01  # ~1km cells
+
+# Monitoring
+monitoring:
+  # Log statistics every N records
+  log_interval: 10000
+
+  # Enable progress bar
+  progress_bar: true
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "/var/log/bigdata/data-producer.log"
+  console: true

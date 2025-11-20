@@ -181,7 +181,7 @@ launch_instance() {
         --instance-type $TYPE \
         --key-name $KEY_NAME \
         --security-group-ids $SG_ID \
-        --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":$VOLUME_SIZE,\"VolumeType\":\"gp3\",\"DeleteOnTermination\":true}}]" \
+        --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":$VOLUME_SIZE,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
         --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$NAME}]" \
         --user-data "#!/bin/bash
 hostnamectl set-hostname $HOSTNAME
@@ -196,10 +196,10 @@ echo '127.0.0.1 $HOSTNAME' >> /etc/hosts" \
 # Lanzar las 4 instancias
 echo -e "${YELLOW}[5/8] Lanzando instancias EC2...${NC}"
 
-launch_instance "bigdata-master" "$MASTER_TYPE" 100 "master-node"
-launch_instance "bigdata-worker1" "$WORKER_TYPE" 200 "worker1-node"
-launch_instance "bigdata-worker2" "$WORKER_TYPE" 200 "worker2-node"
-launch_instance "bigdata-storage" "$STORAGE_TYPE" 150 "storage-node"
+launch_instance "bigdata-master" "$MASTER_TYPE" 30 "master-node"
+launch_instance "bigdata-worker1" "$WORKER_TYPE" 50 "worker1-node"
+launch_instance "bigdata-worker2" "$WORKER_TYPE" 50 "worker2-node"
+launch_instance "bigdata-storage" "$STORAGE_TYPE" 50 "storage-node"
 
 # Esperar a que las instancias estén corriendo
 echo -e "${YELLOW}[6/8] Esperando a que las instancias inicien...${NC}"

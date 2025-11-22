@@ -21,8 +21,9 @@ echo ""
 # Check if running on storage node or remotely
 if hostname | grep -q "storage"; then
     echo "Running on storage node (local)"
-    PSQL_CMD="psql -U $POSTGRES_USER"
-    PSQL_DB_CMD="psql -U $POSTGRES_USER -d $DB_NAME"
+    # Use sudo -u postgres for peer authentication (no password needed)
+    PSQL_CMD="sudo -u $POSTGRES_USER psql"
+    PSQL_DB_CMD="sudo -u $POSTGRES_USER psql -d $DB_NAME"
 else
     echo "Running remotely, connecting to $STORAGE_NODE"
     PSQL_CMD="psql -h $STORAGE_NODE -U $POSTGRES_USER"
@@ -80,14 +81,12 @@ echo ""
 echo "Step 4: Testing connection as bigdata user..."
 echo "---------------------------------------"
 
-# Test connection as bigdata user
+# Test connection as bigdata user (with password)
 if hostname | grep -q "storage"; then
-    TEST_CMD="psql -U $DB_USER -d $DB_NAME"
+    PGPASSWORD=$DB_PASSWORD psql -U $DB_USER -d $DB_NAME -c "SELECT 'Connection successful' AS status;"
 else
-    TEST_CMD="psql -h $STORAGE_NODE -U $DB_USER -d $DB_NAME"
+    PGPASSWORD=$DB_PASSWORD psql -h $STORAGE_NODE -U $DB_USER -d $DB_NAME -c "SELECT 'Connection successful' AS status;"
 fi
-
-$TEST_CMD -c "SELECT 'Connection successful' AS status;"
 
 echo ""
 echo "========================================="

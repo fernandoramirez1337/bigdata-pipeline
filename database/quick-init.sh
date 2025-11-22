@@ -16,7 +16,7 @@ echo "========================================="
 echo ""
 
 echo "Step 1: Creating database and user..."
-sudo -u postgres psql <<EOF
+sudo -i -u postgres psql <<EOF
 -- Create user if not exists
 DO \$\$
 BEGIN
@@ -41,12 +41,12 @@ echo "✅ Database and user ready"
 echo ""
 
 echo "Step 2: Creating tables..."
-sudo -u postgres psql -d $DB_NAME < "$(dirname "$0")/schema.sql"
+sudo -i -u postgres psql -d $DB_NAME < "$(dirname "$0")/schema.sql"
 echo "✅ Tables created"
 echo ""
 
 echo "Step 3: Granting permissions on tables..."
-sudo -u postgres psql -d $DB_NAME <<EOF
+sudo -i -u postgres psql -d $DB_NAME <<EOF
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $DB_USER;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $DB_USER;
 EOF
@@ -55,7 +55,7 @@ echo ""
 
 echo "Step 4: Verifying setup..."
 echo "Tables in database:"
-sudo -u postgres psql -d $DB_NAME -c "\dt"
+sudo -i -u postgres psql -d $DB_NAME -c "\dt"
 echo ""
 
 echo "Testing connection as $DB_USER..."

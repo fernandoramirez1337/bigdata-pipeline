@@ -11,8 +11,27 @@ cd "$(dirname "$0")/flink-jobs"
 
 # Check if Maven is installed
 if ! command -v mvn &> /dev/null; then
-    echo "Maven is not installed. Installing..."
-    sudo yum install -y maven
+    echo "❌ Maven is not installed."
+    echo ""
+    echo "Please install Maven first:"
+    echo ""
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        echo "  brew install maven"
+    elif command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        echo "  sudo apt-get install maven"
+    elif command -v yum &> /dev/null; then
+        # RedHat/CentOS/Amazon Linux
+        echo "  sudo yum install -y maven"
+    elif command -v dnf &> /dev/null; then
+        # Fedora/Amazon Linux 2023
+        echo "  sudo dnf install -y maven"
+    else
+        echo "  Visit: https://maven.apache.org/install.html"
+    fi
+    echo ""
+    exit 1
 fi
 
 # Clean and package

@@ -1,5 +1,6 @@
 package com.bigdata.taxi.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
@@ -15,9 +16,11 @@ public class TaxiTrip implements Serializable {
     private static final DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
 
     @JsonProperty("tpep_pickup_datetime")
+    @JsonAlias({"pickup_datetime"})
     private String pickupDatetime;
 
     @JsonProperty("tpep_dropoff_datetime")
+    @JsonAlias({"dropoff_datetime"})
     private String dropoffDatetime;
 
     @JsonProperty("passenger_count")
@@ -39,7 +42,7 @@ public class TaxiTrip implements Serializable {
     private Double dropoffLatitude;
 
     @JsonProperty("payment_type")
-    private Integer paymentType;
+    private Object paymentType;  // Can be Integer (1, 2) or String ("Credit", "Cash")
 
     @JsonProperty("fare_amount")
     private Double fareAmount;
@@ -137,20 +140,38 @@ public class TaxiTrip implements Serializable {
         this.dropoffLatitude = dropoffLatitude;
     }
 
-    public Integer getPaymentType() {
+    public Object getPaymentType() {
         return paymentType;
     }
 
-    public void setPaymentType(Integer paymentType) {
+    public void setPaymentType(Object paymentType) {
         this.paymentType = paymentType;
     }
 
     public boolean isCashPayment() {
-        return paymentType != null && paymentType == 2;
+        if (paymentType == null) return false;
+        // Handle Integer format (2 = Cash)
+        if (paymentType instanceof Integer) {
+            return (Integer) paymentType == 2;
+        }
+        // Handle String format ("Cash")
+        if (paymentType instanceof String) {
+            return ((String) paymentType).equalsIgnoreCase("Cash");
+        }
+        return false;
     }
 
     public boolean isCreditPayment() {
-        return paymentType != null && paymentType == 1;
+        if (paymentType == null) return false;
+        // Handle Integer format (1 = Credit)
+        if (paymentType instanceof Integer) {
+            return (Integer) paymentType == 1;
+        }
+        // Handle String format ("Credit")
+        if (paymentType instanceof String) {
+            return ((String) paymentType).equalsIgnoreCase("Credit");
+        }
+        return false;
     }
 
     public Double getFareAmount() {

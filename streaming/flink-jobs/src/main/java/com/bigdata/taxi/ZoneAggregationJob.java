@@ -35,9 +35,9 @@ import java.time.Duration;
  */
 public class ZoneAggregationJob {
 
-    private static final String KAFKA_BROKERS = "MASTER_IP:9092";  // UPDATE THIS
-    private static final String KAFKA_TOPIC = "taxi-trips-stream";
-    private static final String JDBC_URL = "jdbc:postgresql://STORAGE_IP:5432/bigdata_taxi";  // UPDATE THIS
+    private static final String KAFKA_BROKERS = "master-node:9092";
+    private static final String KAFKA_TOPIC = "taxi-trips";
+    private static final String JDBC_URL = "jdbc:postgresql://storage-node:5432/bigdata_taxi";
     private static final String JDBC_USER = "bigdata";
     private static final String JDBC_PASSWORD = "bigdata123";
 

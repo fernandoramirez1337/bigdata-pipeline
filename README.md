@@ -2,6 +2,31 @@
 
 Pipeline completo de Big Data para análisis de viajes de taxi de Nueva York con procesamiento en tiempo real (streaming) y por lotes (batch) distribuido en AWS EC2.
 
+## 🚀 Quick Start - Starting the Cluster
+
+### If you already have the cluster deployed:
+
+```bash
+# Option 1: Interactive startup helper (Recommended)
+./quick-start.sh
+
+# Option 2: Direct startup
+./infrastructure/scripts/start-cluster.sh
+
+# Option 3: Step-by-step (see START_CLUSTER_CHECKLIST.md)
+```
+
+**Prerequisites:**
+- EC2 instances are running
+- SSH key `bigd-key.pem` is available
+- Know your current instance IPs
+
+**Time: ~3 minutes** to start all services
+
+See detailed guide: [START_CLUSTER_CHECKLIST.md](START_CLUSTER_CHECKLIST.md)
+
+---
+
 ## Descripción del Proyecto
 
 Este proyecto implementa un pipeline de Big Data end-to-end que procesa datos históricos de taxis de NYC simulando un entorno de producción en tiempo real. Incluye:

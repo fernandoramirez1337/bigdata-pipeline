@@ -153,9 +153,12 @@ Live datanodes (3):
 
 ### Kafka
 
-- **Broker:** master-node:9092
+- **Broker:** master-node:9092 (listening on 0.0.0.0:9092)
 - **Zookeeper:** master-node:2181
-- **Topics:** Not yet created (see next steps)
+- **Topics:** 2 created
+  - `taxi-trips` (3 partitions, replication factor 1)
+  - `processed-events` (3 partitions, replication factor 1)
+- **Compression:** snappy
 
 ### PostgreSQL
 
@@ -204,43 +207,33 @@ During startup, the following issues were resolved:
 - **Fix:** Updated /etc/hosts on all 4 nodes with current internal IPs
 - **Result:** All 3 DataNodes connected to NameNode
 
+### 5. Kafka Listener Configuration - Hardcoded IP
+- **Issue:** Kafka configured with hardcoded IP `172.31.72.49:9092`, clients couldn't connect via localhost
+- **Fix:** Changed `listeners=PLAINTEXT://0.0.0.0:9092` and `advertised.listeners=PLAINTEXT://master-node:9092`
+- **Result:** Kafka now accessible via both localhost and hostname
+
 All fixes are documented in: `docs/CLUSTER_STARTUP_FIXES.md`
 
 ---
 
 ## Next Steps - Data Pipeline Deployment
 
-Now that the cluster is operational, proceed with these steps to start processing data:
+### ✅ Completed Setup Steps
 
-### 1. Create Kafka Topics
+1. **Kafka Topics Created:**
+   - `taxi-trips` (3 partitions, replication factor 1)
+   - `processed-events` (3 partitions, replication factor 1)
 
-```bash
-ssh -i ~/.ssh/bigd-key.pem ec2-user@98.84.24.169
-source /etc/profile.d/bigdata.sh
+2. **HDFS Directory Structure Created:**
+   - `/user/bigdata` - User home directory
+   - `/data/raw` - Raw data storage
+   - `/data/processed` - Processed data storage
+   - `/tmp` - Temporary files
+   - HDFS write/read/delete operations tested successfully
 
-kafka-topics.sh --create \
-  --topic taxi-trips \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1
+### 🚀 Remaining Deployment Steps
 
-kafka-topics.sh --create \
-  --topic processed-events \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1
-```
-
-### 2. Create HDFS Directory Structure
-
-```bash
-hdfs dfs -mkdir -p /user/bigdata /data/raw /data/processed /tmp
-hdfs dfs -chmod 755 /user /data
-hdfs dfs -chmod 1777 /tmp
-hdfs dfs -ls /
-```
-
-### 3. Deploy Data Producer
+### 1. Deploy Data Producer
 
 ```bash
 # From local machine
@@ -254,7 +247,7 @@ pip install -r requirements.txt
 nohup python src/producer.py > /var/log/bigdata/producer.log 2>&1 &
 ```
 
-### 4. Deploy Flink Streaming Jobs
+### 2. Deploy Flink Streaming Jobs
 
 ```bash
 cd /opt/bigdata/bigdata-pipeline/streaming
@@ -262,7 +255,7 @@ bash build.sh
 flink run flink-jobs/target/taxi-streaming-jobs-1.0-SNAPSHOT.jar
 ```
 
-### 5. Configure Spark Batch Jobs
+### 3. Configure Spark Batch Jobs
 
 ```bash
 crontab -e
@@ -270,7 +263,7 @@ crontab -e
 # 0 2 * * * /opt/bigdata/spark/bin/spark-submit /opt/bigdata/batch/spark-jobs/daily_summary.py
 ```
 
-### 6. Start Apache Superset
+### 4. Start Apache Superset
 
 ```bash
 ssh -i ~/.ssh/bigd-key.pem ec2-user@34.229.76.91

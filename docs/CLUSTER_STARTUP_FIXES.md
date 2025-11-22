@@ -360,10 +360,84 @@ All 3 DataNodes successfully connected! ✅
 
 ---
 
+## 5. Kafka Listener Configuration - Hardcoded IP Issue
+
+**Problem:**
+- Kafka was configured with hardcoded private IP in listeners
+- Clients using `localhost:9092` couldn't connect
+- Error: "Connection to node -1 (localhost/127.0.0.1:9092) could not be established"
+
+**Discovery:**
+```bash
+# Kafka was only listening on private IP
+tcp6  0  0 172.31.72.49:9092  :::*  LISTEN
+
+# Configuration had hardcoded IP
+listeners=PLAINTEXT://172.31.72.49:9092
+advertised.listeners=PLAINTEXT://172.31.72.49:9092
+```
+
+**File Modified:** `/opt/bigdata/kafka/config/server.properties` on Master node
+
+**Changes Applied:**
+```bash
+# Before (hardcoded IP):
+listeners=PLAINTEXT://172.31.72.49:9092
+advertised.listeners=PLAINTEXT://172.31.72.49:9092
+
+# After (all interfaces + hostname):
+listeners=PLAINTEXT://0.0.0.0:9092
+advertised.listeners=PLAINTEXT://master-node:9092
+```
+
+**Update Procedure:**
+```bash
+# Backup config
+sudo cp /opt/bigdata/kafka/config/server.properties /opt/bigdata/kafka/config/server.properties.backup
+
+# Update listeners
+sudo sed -i 's|listeners=PLAINTEXT://.*:9092|listeners=PLAINTEXT://0.0.0.0:9092|' /opt/bigdata/kafka/config/server.properties
+sudo sed -i 's|advertised.listeners=PLAINTEXT://.*:9092|advertised.listeners=PLAINTEXT://master-node:9092|' /opt/bigdata/kafka/config/server.properties
+
+# Restart Kafka
+source /etc/profile.d/bigdata.sh
+$KAFKA_HOME/bin/kafka-server-stop.sh
+sleep 3
+nohup $KAFKA_HOME/bin/kafka-server-start.sh $KAFKA_HOME/config/server.properties > /var/log/bigdata/kafka.log 2>&1 &
+```
+
+**Verification:**
+```bash
+# Check Kafka is listening on all interfaces
+sudo netstat -tulnp | grep 9092
+# tcp6  0  0 :::9092  :::*  LISTEN
+
+# Test connection
+kafka-topics.sh --list --bootstrap-server localhost:9092
+# (returns successfully)
+```
+
+**Result:**
+- Kafka now listens on all interfaces (0.0.0.0:9092)
+- Both `localhost:9092` and `master-node:9092` work
+- Topics can be created and managed successfully ✅
+
+**Topics Created:**
+```bash
+kafka-topics.sh --create --topic taxi-trips --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+kafka-topics.sh --create --topic processed-events --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
+```
+
+Both topics created with 3 partitions, replication factor 1, snappy compression.
+
+---
+
 **Status:** ✅ Cluster fully operational as of November 22, 2025
 **Total Task Slots:** 8 (Flink)
 **Total Workers:** 2 (Spark + Flink)
 **Total Storage:** 149.78 GB (HDFS)
 **Live DataNodes:** 3/3 ✅
+**Kafka Topics:** 2 (taxi-trips, processed-events) ✅
+**HDFS Directories:** Created and tested ✅
 
 All services are running correctly and ready for data processing workloads.

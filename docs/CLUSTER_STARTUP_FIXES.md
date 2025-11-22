@@ -280,9 +280,90 @@ curl -s http://98.84.24.169:8080 | grep -i "workers"
 
 ---
 
+## 4. /etc/hosts Update After IP Changes (CRITICAL)
+
+**Problem:**
+- EC2 instances were stopped/started, receiving new private IP addresses
+- `/etc/hosts` files on all nodes still had old internal IP mappings
+- Only 1 DataNode (Worker1) was connecting to NameNode
+- Worker2 and Storage DataNodes couldn't find master-node
+
+**Discovery:**
+```bash
+# Current internal IPs (after restart):
+Master:  172.31.72.49
+Worker1: 172.31.70.167
+Worker2: 172.31.15.51
+Storage: 172.31.31.171
+```
+
+**Files Modified:** `/etc/hosts` on all 4 nodes
+
+**Correct /etc/hosts Content:**
+```
+127.0.0.1   localhost localhost.localdomain
+::1         localhost localhost.localdomain
+
+# Big Data Cluster Nodes
+172.31.72.49   master-node master
+172.31.70.167  worker1-node worker1
+172.31.15.51   worker2-node worker2
+172.31.31.171  storage-node storage
+```
+
+**Update Procedure:**
+```bash
+# On each node (Master, Worker1, Worker2, Storage):
+sudo tee /etc/hosts > /dev/null << 'EOF'
+127.0.0.1   localhost localhost.localdomain
+::1         localhost localhost.localdomain
+
+# Big Data Cluster Nodes
+172.31.72.49   master-node master
+172.31.70.167  worker1-node worker1
+172.31.15.51   worker2-node worker2
+172.31.31.171  storage-node storage
+EOF
+```
+
+**Restart DataNodes:**
+```bash
+# On Worker2
+ssh -i ~/.ssh/bigd-key.pem ec2-user@44.192.56.78
+source /etc/profile.d/bigdata.sh
+$HADOOP_HOME/bin/hdfs --daemon stop datanode
+$HADOOP_HOME/bin/hdfs --daemon start datanode
+
+# On Storage
+ssh -i ~/.ssh/bigd-key.pem ec2-user@34.229.76.91
+source /etc/profile.d/bigdata.sh
+$HADOOP_HOME/bin/hdfs --daemon stop datanode
+$HADOOP_HOME/bin/hdfs --daemon start datanode
+```
+
+**Verification:**
+```bash
+ssh -i ~/.ssh/bigd-key.pem ec2-user@98.84.24.169
+source /etc/profile.d/bigdata.sh
+hdfs dfsadmin -report | head -30
+```
+
+**Result:**
+```
+Live datanodes (3):
+Configured Capacity: 160822136832 (149.78 GB)
+DFS Remaining: 144452841472 (134.53 GB)
+DFS Used%: 0.00%
+```
+
+All 3 DataNodes successfully connected! ✅
+
+---
+
 **Status:** ✅ Cluster fully operational as of November 22, 2025
 **Total Task Slots:** 8 (Flink)
 **Total Workers:** 2 (Spark + Flink)
 **Total Storage:** 149.78 GB (HDFS)
+**Live DataNodes:** 3/3 ✅
 
 All services are running correctly and ready for data processing workloads.

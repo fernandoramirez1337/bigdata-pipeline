@@ -14,13 +14,21 @@ CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m'
 
-# Configuration
+# Load cluster IPs from config file if it exists
+CONFIG_FILE="../../.cluster-ips"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+elif [ -f ".cluster-ips" ]; then
+    source ".cluster-ips"
+fi
+
+# Configuration (with fallback defaults)
 MASTER_IP="${MASTER_IP:-44.210.18.254}"
 WORKER1_IP="${WORKER1_IP:-44.221.77.132}"
 WORKER2_IP="${WORKER2_IP:-3.219.215.11}"
 STORAGE_IP="${STORAGE_IP:-98.88.249.180}"
 SSH_KEY="${SSH_KEY:-~/.ssh/bigd-key.pem}"
-SSH_USER="ec2-user"
+SSH_USER="${SSH_USER:-ec2-user}"
 
 clear
 

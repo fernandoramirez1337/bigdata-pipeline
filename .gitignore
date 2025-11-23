@@ -1,0 +1,53 @@
+# Cluster IP configuration (changes frequently)
+.cluster-ips
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Java
+*.class
+*.jar
+target/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+
+# SSH keys (security)
+*.pem
+*.key
+
+# Data files
+*.parquet
+*.csv
+data/
+
+# Cluster info
+cluster-info.txt

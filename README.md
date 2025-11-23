@@ -4,26 +4,40 @@ Pipeline completo de Big Data para análisis de viajes de taxi de Nueva York con
 
 ## 🚀 Quick Start - Starting the Cluster
 
-### If you already have the cluster deployed:
+### Recommended Method: Interactive Startup
+
+**Use `quick-start.sh` for the best experience:**
 
 ```bash
-# Option 1: Interactive startup helper (Recommended)
 ./quick-start.sh
-
-# Option 2: Direct startup
-./infrastructure/scripts/start-cluster.sh
-
-# Option 3: Step-by-step (see START_CLUSTER_CHECKLIST.md)
 ```
+
+This interactive script will:
+- ✅ Verify SSH key
+- ✅ Configure cluster IPs (saves to `.cluster-ips` for other scripts)
+- ✅ Test connectivity
+- ✅ Verify /etc/hosts
+- ✅ Start all services in correct order
+- ✅ Provide next steps
 
 **Prerequisites:**
 - EC2 instances are running
-- SSH key `bigd-key.pem` is available
+- SSH key `bigd-key.pem` is available (or path to your key)
 - Know your current instance IPs
 
-**Time: ~3 minutes** to start all services
+**Time: ~3-5 minutes** to start all services
 
-See detailed guide: [START_CLUSTER_CHECKLIST.md](START_CLUSTER_CHECKLIST.md)
+### Alternative Methods:
+
+```bash
+# Direct startup (uses saved IPs from .cluster-ips)
+./infrastructure/scripts/start-cluster.sh
+
+# Step-by-step manual process
+# See: START_CLUSTER_CHECKLIST.md
+```
+
+**Important:** Always use `quick-start.sh` first to configure IPs. Other scripts will automatically use the saved configuration.
 
 ---
 

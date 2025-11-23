@@ -16,7 +16,17 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Configuration
+# Load cluster IPs from config file if it exists
+CONFIG_FILE="../../.cluster-ips"
+if [ -f "$CONFIG_FILE" ]; then
+    echo -e "${GREEN}Loading cluster IPs from $CONFIG_FILE${NC}"
+    source "$CONFIG_FILE"
+elif [ -f ".cluster-ips" ]; then
+    echo -e "${GREEN}Loading cluster IPs from .cluster-ips${NC}"
+    source ".cluster-ips"
+fi
+
+# Configuration (with fallback defaults)
 MASTER_IP="${MASTER_IP:-44.210.18.254}"
 MASTER_PRIVATE="172.31.72.49"
 WORKER1_IP="${WORKER1_IP:-44.221.77.132}"
@@ -26,7 +36,7 @@ WORKER2_PRIVATE="172.31.15.51"
 STORAGE_IP="${STORAGE_IP:-98.88.249.180}"
 STORAGE_PRIVATE="172.31.31.171"
 SSH_KEY="${SSH_KEY:-~/.ssh/bigd-key.pem}"
-SSH_USER="ec2-user"
+SSH_USER="${SSH_USER:-ec2-user}"
 
 # Counters
 TESTS_PASSED=0

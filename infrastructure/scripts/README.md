@@ -351,5 +351,5 @@ tail -f /var/log/messages
 
 - [AWS EC2 Documentation](https://docs.aws.amazon.com/ec2/)
 - [AWS CLI Reference](https://docs.aws.amazon.com/cli/)
-- [Plan de Arquitectura](../../PLAN_ARQUITECTURA.md)
+- [Plan de Arquitectura](../../docs/guides/PLAN_ARQUITECTURA.md)
 - [Guía de Deployment](../../docs/DEPLOYMENT_GUIDE.md)

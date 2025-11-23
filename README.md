@@ -34,7 +34,7 @@ This interactive script will:
 ./infrastructure/scripts/start-cluster.sh
 
 # Step-by-step manual process
-# See: START_CLUSTER_CHECKLIST.md
+# See: docs/guides/START_CLUSTER_CHECKLIST.md
 ```
 
 **Important:** Always use `quick-start.sh` first to configure IPs. Other scripts will automatically use the saved configuration.
@@ -105,7 +105,7 @@ Este proyecto implementa un pipeline de Big Data end-to-end que procesa datos hi
 
 ```
 bigdata-pipeline/
-├── PLAN_ARQUITECTURA.md          # Plan detallado de arquitectura
+├── docs/guides/PLAN_ARQUITECTURA.md          # Plan detallado de arquitectura
 ├── docs/
 │   ├── DEPLOYMENT_GUIDE.md       # Guía de despliegue paso a paso
 │   └── troubleshooting.md
@@ -173,7 +173,7 @@ vim orchestrate-cluster.sh
 ./orchestrate-cluster.sh start-cluster
 ```
 
-**Ver tutorial completo**: [END_TO_END_EXAMPLE.md](END_TO_END_EXAMPLE.md)
+**Ver tutorial completo**: [END_TO_END_EXAMPLE.md](docs/guides/END_TO_END_EXAMPLE.md)
 
 ### Opción B: Manual
 
@@ -254,8 +254,8 @@ crontab -e
 
 ### Guías Principales
 
-- 🚀 **[END_TO_END_EXAMPLE.md](END_TO_END_EXAMPLE.md)** - Tutorial completo del zero al dashboard (3-4 horas)
-- 📋 **[PLAN_ARQUITECTURA.md](PLAN_ARQUITECTURA.md)** - Diseño completo del sistema (20+ páginas)
+- 🚀 **[END_TO_END_EXAMPLE.md](docs/guides/END_TO_END_EXAMPLE.md)** - Tutorial completo del zero al dashboard (3-4 horas)
+- 📋 **[PLAN_ARQUITECTURA.md](docs/guides/PLAN_ARQUITECTURA.md)** - Diseño completo del sistema (20+ páginas)
 - 📖 **[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Instalación detallada paso a paso
 - ⚡ **[QUICK_START_4EC2.md](docs/QUICK_START_4EC2.md)** - Checklist rápido de deployment
 

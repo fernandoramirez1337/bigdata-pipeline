@@ -1711,7 +1711,7 @@ superset run -h 0.0.0.0 -p 8088 --with-threads &
 tail -f ~/superset.log
 ```
 
-**See Also**: `SUPERSET_DEPLOYMENT.md`
+**See Also**: `docs/guides/SUPERSET_DEPLOYMENT.md`
 
 #### 7. Services Not Starting After Reboot
 
@@ -1734,7 +1734,7 @@ tail -f ~/superset.log
 
 **Why**: Services are not configured with systemd auto-start; manual start required after reboot.
 
-**See Also**: `SHUTDOWN_STARTUP_GUIDE.md`
+**See Also**: `docs/guides/SHUTDOWN_STARTUP_GUIDE.md`
 
 ---
 
@@ -1784,25 +1784,25 @@ tail -f /var/log/bigdata/*
 
 ### Quick Start Guides
 - **README.md** - Main project overview
-- **QUICK_START.md** - Starting existing cluster (3 min)
+- **docs/guides/QUICK_START.md** - Starting existing cluster (3 min)
 - **quick-start.sh** - Interactive startup script
-- **START_CLUSTER_CHECKLIST.md** - Startup checklist
+- **docs/guides/START_CLUSTER_CHECKLIST.md** - Startup checklist
 
 ### Complete Tutorials
-- **END_TO_END_EXAMPLE.md** - Zero to dashboard (3-4 hours, 12 phases)
-- **FLINK_JOB_DEPLOYMENT.md** - Building and deploying Flink jobs
-- **DATA_PRODUCER_DEPLOYMENT.md** - Setting up data producer
-- **SUPERSET_DEPLOYMENT.md** - Dashboard creation
+- **docs/guides/END_TO_END_EXAMPLE.md** - Zero to dashboard (3-4 hours, 12 phases)
+- **docs/guides/FLINK_JOB_DEPLOYMENT.md** - Building and deploying Flink jobs
+- **docs/guides/DATA_PRODUCER_DEPLOYMENT.md** - Setting up data producer
+- **docs/guides/SUPERSET_DEPLOYMENT.md** - Dashboard creation
 
 ### Architecture & Design
-- **PLAN_ARQUITECTURA.md** - Complete system design (20+ pages)
-- **CLUSTER_OPERATIONAL_STATUS.md** - Current cluster state
+- **docs/guides/PLAN_ARQUITECTURA.md** - Complete system design (20+ pages)
+- **docs/guides/CLUSTER_OPERATIONAL_STATUS.md** - Current cluster state
 
 ### Operational Guides
-- **STARTUP_SUMMARY.md** - Startup procedures
-- **SHUTDOWN_STARTUP_GUIDE.md** - Shutdown/restart procedures
-- **CLUSTER_OPERATIONS_GUIDE.md** - Daily operations
-- **CLUSTER_VERIFICATION_GUIDE.md** - Health checks
+- **docs/guides/STARTUP_SUMMARY.md** - Startup procedures
+- **docs/guides/SHUTDOWN_STARTUP_GUIDE.md** - Shutdown/restart procedures
+- **docs/guides/CLUSTER_OPERATIONS_GUIDE.md** - Daily operations
+- **docs/guides/CLUSTER_VERIFICATION_GUIDE.md** - Health checks
 
 ### Deployment
 - **docs/DEPLOYMENT_GUIDE.md** - Step-by-step deployment

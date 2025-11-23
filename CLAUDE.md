@@ -11,14 +11,16 @@
 1. [Repository Overview](#repository-overview)
 2. [Codebase Structure](#codebase-structure)
 3. [Technology Stack](#technology-stack)
-4. [Development Workflows](#development-workflows)
-5. [Code Conventions](#code-conventions)
-6. [Common Tasks](#common-tasks)
-7. [Testing Strategy](#testing-strategy)
-8. [Deployment Architecture](#deployment-architecture)
-9. [Important Patterns](#important-patterns)
-10. [What to Avoid](#what-to-avoid)
-11. [Troubleshooting](#troubleshooting)
+4. [GitHub Workflows & CI/CD](#github-workflows--cicd)
+5. [IP Management System](#ip-management-system)
+6. [Development Workflows](#development-workflows)
+7. [Code Conventions](#code-conventions)
+8. [Common Tasks](#common-tasks)
+9. [Testing Strategy](#testing-strategy)
+10. [Deployment Architecture](#deployment-architecture)
+11. [Important Patterns](#important-patterns)
+12. [What to Avoid](#what-to-avoid)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -31,8 +33,8 @@ This is a **production-grade distributed Big Data pipeline** processing NYC Taxi
 - **Latency**: <5 seconds (streaming)
 - **Storage**: ~150 GB HDFS (3x replication)
 - **Architecture**: 4 EC2 instances (Master, Worker1, Worker2, Storage)
-- **Code**: ~2,600 lines (Python + Java) + 7,966 lines (Shell scripts)
-- **Documentation**: 20+ guides, ~5,000 lines
+- **Code**: ~2,600 lines (Python + Java) + 7,992 lines (Shell scripts)
+- **Documentation**: 21+ guides, ~5,000 lines
 
 ### Project Maturity
 - **Status**: Production-ready, fully deployed
@@ -85,7 +87,7 @@ bigdata-pipeline/
 │   └── deploy-superset.sh
 │
 ├── infrastructure/         # Deployment automation
-│   └── scripts/                    # 46 scripts, 7,966 lines
+│   └── scripts/                    # 42 scripts, 7,992 lines
 │       ├── create-cluster.sh       # EC2 provisioning (422 lines)
 │       ├── orchestrate-cluster.sh  # Master orchestrator (350 lines)
 │       ├── setup-master.sh         # Master node setup (334 lines)
@@ -94,7 +96,7 @@ bigdata-pipeline/
 │       ├── start-cluster.sh        # Service startup (264 lines)
 │       ├── shutdown-cluster.sh     # Graceful shutdown (314 lines)
 │       ├── verify-cluster-health.sh # Health checks (484 lines)
-│       └── [38 more scripts for fixes, monitoring, operations]
+│       └── [34 more scripts for fixes, monitoring, operations]
 │
 └── docs/                   # Technical documentation
     ├── DEPLOYMENT_GUIDE.md
@@ -105,11 +107,12 @@ bigdata-pipeline/
 ```
 
 ### File Statistics
-- **Shell scripts**: 46 files (7,966 lines)
+- **Shell scripts**: 42 files (7,992 lines)
 - **Python**: 8 files (~1,000 lines)
 - **Java**: 3 files (600 lines)
 - **SQL**: 3 files (400+ lines)
-- **Documentation**: 20+ Markdown files (~5,000 lines)
+- **Documentation**: 21+ Markdown files (~5,000 lines)
+- **GitHub Workflows**: 2 files (107 lines)
 
 ---
 
@@ -155,6 +158,131 @@ bigdata-pipeline/
 ### Build Tools
 - **Maven 3** - Java builds
 - **pip** - Python dependencies
+
+---
+
+## GitHub Workflows & CI/CD
+
+The repository includes automated workflows for Claude-powered code assistance and review.
+
+### 1. Claude PR Assistant (`.github/workflows/claude.yml`)
+
+**Trigger**: When `@claude` is mentioned in:
+- Issue comments
+- Pull request comments
+- Pull request reviews
+- New issues
+
+**Purpose**: Provides on-demand AI assistance for:
+- Answering questions about the codebase
+- Explaining code behavior
+- Helping with debugging
+- Suggesting improvements
+
+**Usage**:
+```
+@claude Can you explain how the zone calculation works?
+@claude Review this implementation
+@claude Help me debug this Flink job
+```
+
+**Permissions**: Read access to code, PRs, issues, and CI results
+
+### 2. Claude Code Review (`.github/workflows/claude-code-review.yml`)
+
+**Trigger**: Automatically on pull request opened/synchronized
+
+**Purpose**: Provides automated code review feedback on:
+- Code quality and best practices
+- Potential bugs or issues
+- Performance considerations
+- Security concerns
+- Test coverage
+
+**How It Works**:
+1. PR is opened or updated
+2. Claude analyzes the changes
+3. Uses CLAUDE.md for style and convention guidance
+4. Posts review comment using `gh pr comment`
+
+**Customization**:
+- Can filter by PR author (currently commented out)
+- Can filter by specific file paths (currently commented out)
+
+**Note**: Both workflows require `CLAUDE_CODE_OAUTH_TOKEN` secret to be configured in repository settings.
+
+---
+
+## IP Management System
+
+The cluster uses a **centralized IP management system** that eliminates the need to manually configure IPs in multiple places.
+
+### How It Works
+
+**1. One-Time Configuration**
+
+Run the interactive startup script:
+```bash
+./quick-start.sh
+```
+
+When prompted, enter your EC2 instance IPs. The script:
+- ✅ Saves IPs to `.cluster-ips` file
+- ✅ Tests SSH connectivity
+- ✅ Starts the cluster
+
+**2. Automatic IP Persistence**
+
+The `.cluster-ips` file stores:
+```bash
+MASTER_IP="44.221.82.82"
+WORKER1_IP="3.236.229.102"
+WORKER2_IP="13.222.123.53"
+STORAGE_IP="3.91.82.140"
+SSH_KEY="/path/to/bigd-key.pem"
+SSH_USER="ec2-user"
+```
+
+**3. Scripts Auto-Load IPs**
+
+All infrastructure scripts automatically read from `.cluster-ips`:
+- `start-cluster.sh` - Uses saved IPs
+- `verify-cluster-health.sh` - Uses saved IPs
+- `cluster-dashboard.sh` - Uses saved IPs
+- `shutdown-cluster.sh` - Uses saved IPs
+
+### Benefits
+
+- ✅ **Configure once, use everywhere** - No more editing multiple scripts
+- ✅ **Automatic persistence** - IPs saved across sessions
+- ✅ **Easy updates** - Re-run `quick-start.sh` to update IPs
+- ✅ **Fallback defaults** - Scripts work even if `.cluster-ips` is missing
+- ✅ **Git-ignored** - `.cluster-ips` is in `.gitignore` (IPs are instance-specific)
+
+### Updating IPs
+
+When your EC2 IPs change (after restart):
+
+```bash
+# Run quick-start.sh again
+./quick-start.sh
+
+# Answer 'n' when asked "Are these IPs still correct?"
+# Enter new IPs
+# Script automatically updates .cluster-ips
+```
+
+### Manual Configuration
+
+If needed, you can manually edit:
+
+```bash
+vim .cluster-ips
+# Update IP values
+# Save and exit
+```
+
+**See**: `docs/guides/IP_MANAGEMENT.md` for complete documentation.
 
 ---
 
@@ -1785,8 +1913,9 @@ tail -f /var/log/bigdata/*
 ### Quick Start Guides
 - **README.md** - Main project overview
 - **docs/guides/QUICK_START.md** - Starting existing cluster (3 min)
-- **quick-start.sh** - Interactive startup script
+- **quick-start.sh** - Interactive startup script with IP configuration
 - **docs/guides/START_CLUSTER_CHECKLIST.md** - Startup checklist
+- **docs/guides/IP_MANAGEMENT.md** - IP management system guide
 
 ### Complete Tutorials
 - **docs/guides/END_TO_END_EXAMPLE.md** - Zero to dashboard (3-4 hours, 12 phases)
@@ -1821,6 +1950,13 @@ tail -f /var/log/bigdata/*
 - **database/schema.sql** - Database schema
 - **data-producer/config.yaml** - Producer configuration
 
+### Project Planning
+- **TODO.md** - Future features and improvements roadmap
+
+### CI/CD
+- **.github/workflows/claude.yml** - Claude PR Assistant workflow
+- **.github/workflows/claude-code-review.yml** - Automated code review
+
 ---
 
 ## Key Contacts & Resources
@@ -1846,15 +1982,17 @@ When working with this codebase as an AI assistant:
 
 ### ✅ Do:
 1. **Read existing documentation first** - This project has excellent docs
-2. **Use provided scripts** - 46 scripts handle most operations
-3. **Follow naming conventions** - Consistent style across Python/Java/Shell
-4. **Test changes thoroughly** - Use health check scripts
-5. **Check logs when troubleshooting** - Logs are comprehensive
-6. **Preserve data** - Use ALTER TABLE, not DROP/CREATE
-7. **Follow deployment order** - Services have dependencies
-8. **Use hostnames, not IPs** - Hostnames are stable
-9. **Verify after changes** - Check Web UIs and databases
-10. **Document new features** - Update relevant .md files
+2. **Use provided scripts** - 42 scripts handle most operations
+3. **Use the IP management system** - Run `quick-start.sh` to configure IPs once
+4. **Follow naming conventions** - Consistent style across Python/Java/Shell
+5. **Test changes thoroughly** - Use health check scripts
+6. **Check logs when troubleshooting** - Logs are comprehensive
+7. **Preserve data** - Use ALTER TABLE, not DROP/CREATE
+8. **Follow deployment order** - Services have dependencies
+9. **Use hostnames, not IPs** - Hostnames are stable (or use `.cluster-ips`)
+10. **Verify after changes** - Check Web UIs and databases
+11. **Document new features** - Update relevant .md files
+12. **Use GitHub workflows** - Mention `@claude` in PRs/issues for assistance
 
 ### ❌ Don't:
 1. **Modify configs directly on nodes** - Update setup scripts instead
@@ -1869,10 +2007,11 @@ When working with this codebase as an AI assistant:
 10. **Make breaking changes without migration plan**
 
 ### When Unsure:
-- Check existing documentation (20+ guides)
+- Check existing documentation (21+ guides)
 - Look at similar code in the repository
 - Use health check and verification scripts
 - Test in isolation before deploying to cluster
+- Mention `@claude` in issues/PRs for assistance (if GitHub workflows are enabled)
 - Ask user for clarification on architectural decisions
 
 ---

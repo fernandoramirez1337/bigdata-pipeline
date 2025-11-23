@@ -102,7 +102,7 @@ def write_to_s3(df, output_path):
 
 def main():
     # Configuration
-    HDFS_INPUT = "hdfs://MASTER_IP:9000/data/taxi/raw"  # UPDATE THIS
+    HDFS_INPUT = "hdfs://master-node:9000/data/taxi/raw"  # UPDATE THIS
     S3_OUTPUT = "s3a://bigdata-taxi-results/batch-results/daily-summary"
     POSTGRES_URL = "jdbc:postgresql://STORAGE_IP:5432/bigdata_taxi"  # UPDATE THIS
     POSTGRES_TABLE = "daily_summary"

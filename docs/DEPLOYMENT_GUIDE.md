@@ -222,7 +222,7 @@ Abrir en navegador:
   - Verificar: 2 TaskManagers activos
 
 - **Superset**: http://<STORAGE_PUBLIC_IP>:8088
-  - Login: admin / admin123
+  - Login: admin / admin
 
 ### 2. Verificar Kafka
 
@@ -375,7 +375,7 @@ crontab -e
 # Acceder a Superset
 http://<STORAGE_PUBLIC_IP>:8088
 
-# Login: admin / admin123
+# Login: admin / admin
 
 # 1. Ir a: Data → Databases → + Database
 # 2. Seleccionar: PostgreSQL

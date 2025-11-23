@@ -66,10 +66,10 @@ test_ssh() {
     local ip=$2
     if ssh -i $SSH_KEY -o ConnectTimeout=5 -o StrictHostKeyChecking=no $SSH_USER@$ip "echo 'OK'" &>/dev/null; then
         echo -e "  ${GREEN}✅ $name ($ip)${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${RED}❌ $name ($ip) - Cannot connect${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -96,10 +96,10 @@ test_ping() {
     result=$(ssh -i $SSH_KEY -o ConnectTimeout=5 $SSH_USER@$from_ip "ping -c 1 -W 2 $to_ip &>/dev/null && echo 'OK' || echo 'FAIL'")
     if [[ "$result" == "OK" ]]; then
         echo -e "  ${GREEN}✅ $from_name → $to_name ($to_ip)${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${RED}❌ $from_name → $to_name ($to_ip)${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -137,10 +137,10 @@ test_hostname() {
     result=$(ssh -i $SSH_KEY $SSH_USER@$node_ip "getent hosts $target_host | awk '{print \$1}'")
     if [[ "$result" == "$expected_ip" ]]; then
         echo -e "  ${GREEN}✅ $node_name: $target_host → $expected_ip${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${RED}❌ $node_name: $target_host → $result (expected $expected_ip)${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 }
 
@@ -169,10 +169,10 @@ done
 for process in "NameNode" "QuorumPeerMain" "Kafka" "Master" "StandaloneSessionClusterEntrypoint"; do
     if ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "source /etc/profile.d/bigdata.sh && jps | grep -q '$process'"; then
         echo -e "  ${GREEN}✅ $process running${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${YELLOW}⚠️  $process not found${NC}"
-        ((TESTS_WARNING++))
+        ((++TESTS_WARNING))
     fi
 done
 
@@ -185,10 +185,10 @@ done
 for process in "DataNode" "Worker" "TaskManagerRunner"; do
     if ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "source /etc/profile.d/bigdata.sh && jps | grep -q '$process'"; then
         echo -e "  ${GREEN}✅ $process running${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${YELLOW}⚠️  $process not found${NC}"
-        ((TESTS_WARNING++))
+        ((++TESTS_WARNING))
     fi
 done
 
@@ -201,10 +201,10 @@ done
 for process in "DataNode" "Worker" "TaskManagerRunner"; do
     if ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "source /etc/profile.d/bigdata.sh && jps | grep -q '$process'"; then
         echo -e "  ${GREEN}✅ $process running${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${YELLOW}⚠️  $process not found${NC}"
-        ((TESTS_WARNING++))
+        ((++TESTS_WARNING))
     fi
 done
 
@@ -216,10 +216,10 @@ done
 
 if ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "source /etc/profile.d/bigdata.sh && jps | grep -q 'DataNode'"; then
     echo -e "  ${GREEN}✅ DataNode running${NC}"
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
 else
     echo -e "  ${YELLOW}⚠️  DataNode not found${NC}"
-    ((TESTS_WARNING++))
+    ((++TESTS_WARNING))
 fi
 
 echo ""
@@ -236,26 +236,26 @@ HDFS_REPORT=$(ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "source /etc/profile.d/bigdat
 echo "$HDFS_REPORT" | grep -E "(Configured Capacity|DFS Remaining|Live datanodes)"
 echo ""
 
-LIVE_NODES=$(echo "$HDFS_REPORT" | grep -oP 'Live datanodes \(\K[0-9]+')
+LIVE_NODES=$(echo "$HDFS_REPORT" | grep 'Live datanodes' | awk -F'(' '{print $2}' | awk -F')' '{print $1}')
 if [[ "$LIVE_NODES" == "3" ]]; then
     echo -e "${GREEN}✅ All 3 DataNodes connected to NameNode${NC}"
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
 elif [[ -n "$LIVE_NODES" ]] && [[ "$LIVE_NODES" -gt "0" ]]; then
     echo -e "${YELLOW}⚠️  Only $LIVE_NODES DataNode(s) connected (expected 3)${NC}"
-    ((TESTS_WARNING++))
+    ((++TESTS_WARNING))
 else
     echo -e "${RED}❌ No DataNodes connected${NC}"
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
 fi
 
 # Check each DataNode
 for node_name in "worker1-node" "worker2-node" "storage-node"; do
     if echo "$HDFS_REPORT" | grep -q "$node_name"; then
         echo -e "${GREEN}✅ $node_name registered in HDFS${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${RED}❌ $node_name NOT registered in HDFS${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 done
 
@@ -282,10 +282,10 @@ for node_name in "Worker1" "Worker2" "Storage"; do
     result=$(ssh -i $SSH_KEY $SSH_USER@$node_ip "timeout 3 bash -c 'cat < /dev/null > /dev/tcp/$MASTER_PRIVATE/9000' 2>&1 && echo 'OK' || echo 'FAIL'")
     if [[ "$result" == "OK" ]]; then
         echo -e "  ${GREEN}✅ $node_name → NameNode:9000${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${RED}❌ $node_name → NameNode:9000 BLOCKED${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 done
 
@@ -295,15 +295,15 @@ NAMENODE_BIND=$(ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "sudo netstat -tulnp 2>/dev
 if echo "$NAMENODE_BIND" | grep -q "0.0.0.0:9000"; then
     echo -e "${GREEN}✅ NameNode listening on 0.0.0.0:9000 (all interfaces)${NC}"
     echo "  $NAMENODE_BIND"
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
 elif echo "$NAMENODE_BIND" | grep -q "127.0.0.1:9000"; then
     echo -e "${RED}❌ NameNode listening on 127.0.0.1:9000 (localhost only)${NC}"
     echo "  $NAMENODE_BIND"
     echo -e "${YELLOW}  Run: ./infrastructure/scripts/fix-namenode-binding.sh${NC}"
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
 else
     echo -e "${RED}❌ NameNode not listening on port 9000${NC}"
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
 fi
 
 echo ""
@@ -321,14 +321,14 @@ SPARK_STATUS=$(ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "curl -s http://localhost:80
 if [[ -n "$SPARK_STATUS" ]]; then
     if [[ "$SPARK_STATUS" == "2" ]]; then
         echo -e "${GREEN}✅ Spark Master reports 2 Workers connected${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${YELLOW}⚠️  Spark Master reports $SPARK_STATUS Worker(s) (expected 2)${NC}"
-        ((TESTS_WARNING++))
+        ((++TESTS_WARNING))
     fi
 else
     echo -e "${YELLOW}⚠️  Cannot verify Spark Workers count${NC}"
-    ((TESTS_WARNING++))
+    ((++TESTS_WARNING))
 fi
 
 echo ""
@@ -343,10 +343,10 @@ for node_name in "Worker1" "Worker2"; do
     result=$(ssh -i $SSH_KEY $SSH_USER@$node_ip "timeout 3 bash -c 'cat < /dev/null > /dev/tcp/$MASTER_PRIVATE/7077' 2>&1 && echo 'OK' || echo 'FAIL'")
     if [[ "$result" == "OK" ]]; then
         echo -e "  ${GREEN}✅ $node_name → Spark Master:7077${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${RED}❌ $node_name → Spark Master:7077 BLOCKED${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 done
 
@@ -365,14 +365,14 @@ FLINK_STATUS=$(ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "curl -s http://localhost:80
 if [[ -n "$FLINK_STATUS" ]]; then
     if [[ "$FLINK_STATUS" == "2" ]]; then
         echo -e "${GREEN}✅ Flink JobManager reports 2 TaskManagers connected${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "${YELLOW}⚠️  Flink JobManager reports $FLINK_STATUS TaskManager(s) (expected 2)${NC}"
-        ((TESTS_WARNING++))
+        ((++TESTS_WARNING))
     fi
 else
     echo -e "${YELLOW}⚠️  Cannot verify Flink TaskManagers count${NC}"
-    ((TESTS_WARNING++))
+    ((++TESTS_WARNING))
 fi
 
 echo ""
@@ -387,10 +387,10 @@ for node_name in "Worker1" "Worker2"; do
     result=$(ssh -i $SSH_KEY $SSH_USER@$node_ip "timeout 3 bash -c 'cat < /dev/null > /dev/tcp/$MASTER_PRIVATE/6123' 2>&1 && echo 'OK' || echo 'FAIL'")
     if [[ "$result" == "OK" ]]; then
         echo -e "  ${GREEN}✅ $node_name → Flink JobManager:6123${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     else
         echo -e "  ${RED}❌ $node_name → Flink JobManager:6123 BLOCKED${NC}"
-        ((TESTS_FAILED++))
+        ((++TESTS_FAILED))
     fi
 done
 
@@ -408,10 +408,10 @@ ZK_STATUS=$(ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "echo stat | nc localhost 2181 
 if [[ -n "$ZK_STATUS" ]]; then
     echo -e "${GREEN}✅ Zookeeper is running${NC}"
     echo "  $ZK_STATUS"
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
 else
     echo -e "${RED}❌ Zookeeper not responding${NC}"
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
 fi
 
 echo ""
@@ -419,10 +419,10 @@ echo "Checking Kafka:"
 KAFKA_TOPICS=$(ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "source /etc/profile.d/bigdata.sh && kafka-topics.sh --list --bootstrap-server localhost:9092 2>/dev/null | wc -l")
 if [[ "$KAFKA_TOPICS" =~ ^[0-9]+$ ]]; then
     echo -e "${GREEN}✅ Kafka is running (Topics: $KAFKA_TOPICS)${NC}"
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
 else
     echo -e "${RED}❌ Kafka not responding${NC}"
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
 fi
 
 echo ""
@@ -439,10 +439,10 @@ PG_STATUS=$(ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "PGPASSWORD=bigdata123 psql -U
 if [[ -n "$PG_STATUS" ]]; then
     echo -e "${GREEN}✅ PostgreSQL is running and accessible${NC}"
     echo "  $(echo $PG_STATUS | cut -d',' -f1)"
-    ((TESTS_PASSED++))
+    ((++TESTS_PASSED))
 else
     echo -e "${RED}❌ PostgreSQL connection failed${NC}"
-    ((TESTS_FAILED++))
+    ((++TESTS_FAILED))
 fi
 
 echo ""
@@ -451,7 +451,7 @@ DBS=$(ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "PGPASSWORD=bigdata123 psql -U bigda
 echo "$DBS" | while read db; do
     if [[ -n "$db" ]]; then
         echo -e "${GREEN}✅ Database: $db${NC}"
-        ((TESTS_PASSED++))
+        ((++TESTS_PASSED))
     fi
 done
 

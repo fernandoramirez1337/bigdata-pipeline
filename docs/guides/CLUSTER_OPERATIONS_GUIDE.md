@@ -592,7 +592,7 @@ ssh -i ~/.ssh/bigd-key.pem ec2-user@$MASTER_IP "jps"
 
 ### Default Credentials
 
-- **Superset:** admin / admin123
+- **Superset:** admin / admin
 - **PostgreSQL:** bigdata / bigdata123
 - **SSH:** ec2-user (key-based auth)
 

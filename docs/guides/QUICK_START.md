@@ -107,7 +107,7 @@ exit
 **Access Superset**:
 - URL: http://98.88.249.180:8088
 - Username: `admin`
-- Password: `admin123`
+- Password: `admin`
 
 ### 4. Create Kafka Topics
 

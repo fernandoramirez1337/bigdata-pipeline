@@ -345,7 +345,7 @@ http://<MASTER_PUBLIC_IP>:8081
 ```
 http://<STORAGE_PUBLIC_IP>:8088
 ```
-**Login**: admin / admin123
+**Login**: admin / admin
 
 ---
 
@@ -546,7 +546,7 @@ FROM real_time_zones;
 http://<STORAGE_PUBLIC_IP>:8088
 ```
 - **Usuario**: admin
-- **Password**: admin123
+- **Password**: admin
 
 ### 11.2 Conectar base de datos
 

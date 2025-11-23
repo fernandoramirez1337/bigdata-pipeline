@@ -205,7 +205,7 @@ crontab -e
 - **HDFS**: http://\<MASTER_IP\>:9870
 - **Spark**: http://\<MASTER_IP\>:8080
 - **Flink**: http://\<MASTER_IP\>:8081
-- **Superset**: http://\<STORAGE_IP\>:8088 (admin/admin123)
+- **Superset**: http://\<STORAGE_IP\>:8088 (admin/admin)
 
 ## Análisis Implementados
 

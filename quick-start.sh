@@ -266,7 +266,7 @@ echo "   cd /opt/bigdata/superset"
 echo "   source /opt/bigdata/superset-venv/bin/activate"
 echo "   export SUPERSET_CONFIG_PATH=/opt/bigdata/superset/superset_config.py"
 echo "   nohup superset run -h 0.0.0.0 -p 8088 --with-threads > /var/log/bigdata/superset.log 2>&1 &"
-echo "   # Access: http://$STORAGE_IP:8088 (admin/admin123)"
+echo "   # Access: http://$STORAGE_IP:8088 (admin/admin)"
 echo ""
 
 echo "5. Create Kafka topics:"

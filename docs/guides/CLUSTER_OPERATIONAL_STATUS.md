@@ -179,7 +179,7 @@ All web UIs are accessible from your local machine:
 | HDFS NameNode | http://98.84.24.169:9870 | None required |
 | Spark Master | http://98.84.24.169:8080 | None required |
 | Flink Dashboard | http://98.84.24.169:8081 | None required |
-| Apache Superset | http://34.229.76.91:8088 | admin / admin123 |
+| Apache Superset | http://34.229.76.91:8088 | admin / admin |
 
 ---
 

@@ -1,0 +1,265 @@
+#!/bin/bash
+###############################################################################
+# Quick Start Script - Interactive Cluster Startup Helper
+#
+# This script helps you start the cluster with guided prompts
+###############################################################################
+
+set -e
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${CYAN}"
+cat << "EOF"
+╔══════════════════════════════════════════════════════════════╗
+║     BIG DATA CLUSTER - QUICK START HELPER                    ║
+╚══════════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
+echo ""
+
+#==============================================================================
+# CHECK 1: SSH Key
+#==============================================================================
+echo -e "${BLUE}[1/5] Checking SSH Key...${NC}"
+echo ""
+
+SSH_KEY="$HOME/.ssh/bigd-key.pem"
+
+if [ -f "$SSH_KEY" ]; then
+    echo -e "${GREEN}✅ SSH key found at $SSH_KEY${NC}"
+
+    # Check permissions
+    PERMS=$(stat -c %a "$SSH_KEY" 2>/dev/null || stat -f %A "$SSH_KEY" 2>/dev/null)
+    if [ "$PERMS" != "400" ]; then
+        echo -e "${YELLOW}⚠️  Fixing SSH key permissions...${NC}"
+        chmod 400 "$SSH_KEY"
+        echo -e "${GREEN}✅ Permissions fixed${NC}"
+    fi
+else
+    echo -e "${RED}❌ SSH key not found at $SSH_KEY${NC}"
+    echo ""
+    echo "Please provide the path to your SSH key:"
+    read -p "SSH key path: " custom_key
+
+    if [ -f "$custom_key" ]; then
+        SSH_KEY="$custom_key"
+        chmod 400 "$SSH_KEY"
+        echo -e "${GREEN}✅ Using key: $SSH_KEY${NC}"
+    else
+        echo -e "${RED}❌ Key file not found. Exiting.${NC}"
+        exit 1
+    fi
+fi
+
+echo ""
+
+#==============================================================================
+# CHECK 2: EC2 Instance IPs
+#==============================================================================
+echo -e "${BLUE}[2/5] Configuring EC2 Instance IPs...${NC}"
+echo ""
+
+# Default IPs from previous deployment
+DEFAULT_MASTER="44.210.18.254"
+DEFAULT_WORKER1="44.221.77.132"
+DEFAULT_WORKER2="3.219.215.11"
+DEFAULT_STORAGE="98.88.249.180"
+
+echo "Current IPs in scripts:"
+echo "  Master:  $DEFAULT_MASTER"
+echo "  Worker1: $DEFAULT_WORKER1"
+echo "  Worker2: $DEFAULT_WORKER2"
+echo "  Storage: $DEFAULT_STORAGE"
+echo ""
+
+read -p "Are these IPs still correct? (y/n): " use_default
+
+if [[ "$use_default" =~ ^[Yy]$ ]]; then
+    MASTER_IP="$DEFAULT_MASTER"
+    WORKER1_IP="$DEFAULT_WORKER1"
+    WORKER2_IP="$DEFAULT_WORKER2"
+    STORAGE_IP="$DEFAULT_STORAGE"
+    echo -e "${GREEN}✅ Using existing IPs${NC}"
+else
+    echo ""
+    echo "Enter current public IPs:"
+    read -p "Master IP:  " MASTER_IP
+    read -p "Worker1 IP: " WORKER1_IP
+    read -p "Worker2 IP: " WORKER2_IP
+    read -p "Storage IP: " STORAGE_IP
+
+    # Export for use by other scripts
+    export MASTER_IP WORKER1_IP WORKER2_IP STORAGE_IP
+    echo -e "${GREEN}✅ IPs configured${NC}"
+fi
+
+echo ""
+
+#==============================================================================
+# CHECK 3: Test Connectivity
+#==============================================================================
+echo -e "${BLUE}[3/5] Testing SSH Connectivity...${NC}"
+echo ""
+
+SSH_OPTS="-o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+SSH_USER="ec2-user"
+
+test_ssh() {
+    local ip=$1
+    local name=$2
+
+    if ssh -i "$SSH_KEY" $SSH_OPTS $SSH_USER@$ip "echo 'OK'" &>/dev/null; then
+        echo -e "  ${GREEN}✅ $name ($ip)${NC}"
+        return 0
+    else
+        echo -e "  ${RED}❌ $name ($ip) - Cannot connect${NC}"
+        return 1
+    fi
+}
+
+FAILED=0
+test_ssh "$MASTER_IP" "Master " || FAILED=$((FAILED+1))
+test_ssh "$WORKER1_IP" "Worker1" || FAILED=$((FAILED+1))
+test_ssh "$WORKER2_IP" "Worker2" || FAILED=$((FAILED+1))
+test_ssh "$STORAGE_IP" "Storage" || FAILED=$((FAILED+1))
+
+echo ""
+
+if [ $FAILED -gt 0 ]; then
+    echo -e "${RED}❌ Failed to connect to $FAILED instance(s)${NC}"
+    echo ""
+    echo "Possible issues:"
+    echo "  1. EC2 instances are not running (start them in AWS Console)"
+    echo "  2. Wrong IP addresses"
+    echo "  3. Security group doesn't allow SSH from your IP"
+    echo "  4. Wrong SSH key"
+    echo ""
+    read -p "Do you want to continue anyway? (y/n): " continue_anyway
+
+    if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
+        echo "Exiting."
+        exit 1
+    fi
+fi
+
+#==============================================================================
+# CHECK 4: Verify /etc/hosts on all nodes
+#==============================================================================
+echo -e "${BLUE}[4/5] Verifying /etc/hosts configuration...${NC}"
+echo ""
+
+check_etc_hosts() {
+    local ip=$1
+    local name=$2
+
+    echo "  Checking $name..."
+    if ssh -i "$SSH_KEY" $SSH_OPTS $SSH_USER@$ip "grep -q 'master-node' /etc/hosts" 2>/dev/null; then
+        echo -e "    ${GREEN}✅ /etc/hosts configured${NC}"
+    else
+        echo -e "    ${YELLOW}⚠️  /etc/hosts may need configuration${NC}"
+    fi
+}
+
+check_etc_hosts "$MASTER_IP" "Master"
+check_etc_hosts "$WORKER1_IP" "Worker1"
+check_etc_hosts "$WORKER2_IP" "Worker2"
+check_etc_hosts "$STORAGE_IP" "Storage"
+
+echo ""
+
+#==============================================================================
+# CHECK 5: Start Cluster
+#==============================================================================
+echo -e "${BLUE}[5/5] Ready to Start Cluster${NC}"
+echo ""
+
+echo "The following services will be started:"
+echo "  1. Zookeeper (Master)"
+echo "  2. Kafka (Master)"
+echo "  3. HDFS (NameNode on Master, DataNodes on all nodes)"
+echo "  4. Spark (Master + 2 Workers)"
+echo "  5. Flink (JobManager + 2 TaskManagers)"
+echo "  6. PostgreSQL verification (Storage)"
+echo ""
+
+read -p "Start the cluster now? (y/n): " start_cluster
+
+if [[ "$start_cluster" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${CYAN}Starting cluster...${NC}"
+    echo ""
+
+    # Export IPs for the start script
+    export SSH_KEY MASTER_IP WORKER1_IP WORKER2_IP STORAGE_IP
+
+    # Run the start script
+    if [ -f "infrastructure/scripts/start-cluster.sh" ]; then
+        bash infrastructure/scripts/start-cluster.sh
+    else
+        echo -e "${RED}❌ start-cluster.sh not found${NC}"
+        exit 1
+    fi
+else
+    echo ""
+    echo "Cluster startup cancelled."
+    echo ""
+    echo "To start manually, run:"
+    echo "  export SSH_KEY=\"$SSH_KEY\""
+    echo "  export MASTER_IP=\"$MASTER_IP\""
+    echo "  export WORKER1_IP=\"$WORKER1_IP\""
+    echo "  export WORKER2_IP=\"$WORKER2_IP\""
+    echo "  export STORAGE_IP=\"$STORAGE_IP\""
+    echo "  ./infrastructure/scripts/start-cluster.sh"
+    echo ""
+    exit 0
+fi
+
+#==============================================================================
+# POST-START
+#==============================================================================
+echo ""
+echo -e "${CYAN}=========================================${NC}"
+echo -e "${CYAN}What to do next:${NC}"
+echo -e "${CYAN}=========================================${NC}"
+echo ""
+
+echo "1. Verify cluster health:"
+echo "   ./infrastructure/scripts/verify-cluster-health.sh"
+echo ""
+
+echo "2. View interactive dashboard:"
+echo "   ./infrastructure/scripts/cluster-dashboard.sh"
+echo ""
+
+echo "3. Access Web UIs:"
+echo "   HDFS:  http://$MASTER_IP:9870"
+echo "   Spark: http://$MASTER_IP:8080"
+echo "   Flink: http://$MASTER_IP:8081"
+echo ""
+
+echo "4. Start Superset for dashboards:"
+echo "   ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP"
+echo "   cd /opt/bigdata/superset"
+echo "   source /opt/bigdata/superset-venv/bin/activate"
+echo "   export SUPERSET_CONFIG_PATH=/opt/bigdata/superset/superset_config.py"
+echo "   nohup superset run -h 0.0.0.0 -p 8088 --with-threads > /var/log/bigdata/superset.log 2>&1 &"
+echo "   # Access: http://$STORAGE_IP:8088 (admin/admin123)"
+echo ""
+
+echo "5. Create Kafka topics:"
+echo "   See: infrastructure/scripts/orchestrate-cluster.sh create-topics"
+echo ""
+
+echo "6. Deploy data producer:"
+echo "   See: data-producer/README.md"
+echo ""
+
+echo -e "${GREEN}Happy Big Data processing! 🚀${NC}"
+echo ""

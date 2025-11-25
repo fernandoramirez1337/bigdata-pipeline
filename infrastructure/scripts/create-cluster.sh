@@ -1,60 +1,43 @@
 #!/bin/bash
-###############################################################################
 # AWS EC2 Cluster Creation Script
-# Crea automáticamente 4 instancias EC2 con Security Group configurado
-# para el pipeline de Big Data
-###############################################################################
+# Creates 4 EC2 instances with Security Group configured
 
 set -e
 
-# Colors para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+echo "AWS Big Data Cluster - EC2 Creator"
+echo "=================================="
 
-echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}AWS Big Data Cluster - EC2 Creator${NC}"
-echo -e "${BLUE}=========================================${NC}"
-echo ""
-
-# Variables de configuración
+# Configuration Variables
 KEY_NAME="${KEY_NAME:-bigd-key}"
 AMI_ID="${AMI_ID:-ami-0453ec754f44f9a4a}"  # Amazon Linux 2023 us-east-1
-MY_IP="${MY_IP:-0.0.0.0/0}"  # CAMBIAR a tu IP para mayor seguridad
+MY_IP="${MY_IP:-0.0.0.0/0}"
 REGION="${AWS_REGION:-us-east-1}"
 
-# Tipos de instancia (configurables para AWS Learner Lab)
-MASTER_TYPE="${MASTER_TYPE:-t2.medium}"    # 2 vCPU, 4 GB RAM
-WORKER_TYPE="${WORKER_TYPE:-t2.medium}"    # 2 vCPU, 4 GB RAM
-STORAGE_TYPE="${STORAGE_TYPE:-t2.medium}"  # 2 vCPU, 4 GB RAM
+# Instance Types
+MASTER_TYPE="${MASTER_TYPE:-t2.medium}"
+WORKER_TYPE="${WORKER_TYPE:-t2.medium}"
+STORAGE_TYPE="${STORAGE_TYPE:-t2.medium}"
 
-echo -e "${YELLOW}Configuration:${NC}"
+echo "Configuration:"
 echo "  Key Name: $KEY_NAME"
 echo "  AMI ID: $AMI_ID"
 echo "  SSH Access: $MY_IP"
 echo "  Region: $REGION"
 echo ""
 
-# Verificar que la key existe
-echo -e "${YELLOW}[1/8] Verificando key pair...${NC}"
+# Check Key Pair
+echo "[1/8] Checking key pair..."
 if ! aws ec2 describe-key-pairs --key-names $KEY_NAME --region $REGION &>/dev/null; then
-    echo -e "${RED}ERROR: Key pair '$KEY_NAME' no existe${NC}"
-    echo ""
-    echo "Para crear la key:"
+    echo "ERROR: Key pair '$KEY_NAME' does not exist."
+    echo "Create it first:"
     echo "  aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > ~/.ssh/$KEY_NAME.pem"
     echo "  chmod 400 ~/.ssh/$KEY_NAME.pem"
-    echo ""
-    echo "O especifica una key existente:"
-    echo "  export KEY_NAME=tu-key-existente"
-    echo "  $0"
     exit 1
 fi
-echo -e "${GREEN}✓ Key pair encontrada${NC}"
+echo "Key pair found."
 
-# Obtener VPC por defecto
-echo -e "${YELLOW}[2/8] Obteniendo información de VPC...${NC}"
+# Get VPC
+echo "[2/8] Getting VPC info..."
 VPC_ID=$(aws ec2 describe-vpcs \
     --filters "Name=is-default,Values=true" \
     --query "Vpcs[0].VpcId" \
@@ -62,7 +45,7 @@ VPC_ID=$(aws ec2 describe-vpcs \
     --region $REGION)
 
 if [ "$VPC_ID" == "None" ] || [ -z "$VPC_ID" ]; then
-    echo -e "${RED}ERROR: No se encontró VPC por defecto${NC}"
+    echo "ERROR: No default VPC found"
     exit 1
 fi
 
@@ -72,13 +55,12 @@ VPC_CIDR=$(aws ec2 describe-vpcs \
     --output text \
     --region $REGION)
 
-echo -e "${GREEN}✓ VPC ID: $VPC_ID${NC}"
-echo -e "${GREEN}✓ VPC CIDR: $VPC_CIDR${NC}"
+echo "VPC ID: $VPC_ID"
+echo "VPC CIDR: $VPC_CIDR"
 
-# Crear Security Group
-echo -e "${YELLOW}[3/8] Creando Security Group...${NC}"
+# Create Security Group
+echo "[3/8] Creating Security Group..."
 
-# Verificar si ya existe
 EXISTING_SG=$(aws ec2 describe-security-groups \
     --filters "Name=group-name,Values=bigdata-cluster-sg" "Name=vpc-id,Values=$VPC_ID" \
     --query "SecurityGroups[0].GroupId" \
@@ -86,31 +68,30 @@ EXISTING_SG=$(aws ec2 describe-security-groups \
     --region $REGION 2>/dev/null || echo "None")
 
 if [ "$EXISTING_SG" != "None" ] && [ -n "$EXISTING_SG" ]; then
-    echo -e "${YELLOW}Security Group ya existe: $EXISTING_SG${NC}"
-    read -p "¿Quieres eliminarlo y crear uno nuevo? (y/n): " -n 1 -r
+    echo "Security Group exists: $EXISTING_SG"
+    read -p "Delete and recreate? (y/n): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         aws ec2 delete-security-group --group-id $EXISTING_SG --region $REGION
-        echo -e "${GREEN}✓ Security Group eliminado${NC}"
+        echo "Security Group deleted."
     else
         SG_ID=$EXISTING_SG
-        echo -e "${GREEN}✓ Usando Security Group existente${NC}"
+        echo "Using existing Security Group."
     fi
 fi
 
 if [ -z "$SG_ID" ]; then
     SG_ID=$(aws ec2 create-security-group \
         --group-name bigdata-cluster-sg \
-        --description "Security group for Big Data cluster - 4 EC2 instances" \
+        --description "Security group for Big Data cluster" \
         --vpc-id $VPC_ID \
         --region $REGION \
         --query 'GroupId' \
         --output text)
 
-    echo -e "${GREEN}✓ Security Group creado: $SG_ID${NC}"
+    echo "Security Group created: $SG_ID"
 
-    # Agregar reglas de ingress
-    echo -e "${YELLOW}[4/8] Configurando reglas de firewall...${NC}"
+    echo "[4/8] Configuring firewall rules..."
 
     # SSH
     aws ec2 authorize-security-group-ingress \
@@ -120,9 +101,9 @@ if [ -z "$SG_ID" ]; then
         --cidr $MY_IP \
         --region $REGION \
         --output text > /dev/null
-    echo "  ✓ SSH (22) desde $MY_IP"
+    echo "  SSH (22) allowed"
 
-    # Web UIs públicos
+    # Web UIs
     aws ec2 authorize-security-group-ingress \
         --group-id $SG_ID \
         --protocol tcp \
@@ -130,7 +111,7 @@ if [ -z "$SG_ID" ]; then
         --cidr 0.0.0.0/0 \
         --region $REGION \
         --output text > /dev/null
-    echo "  ✓ Web UIs (8080-8088) público"
+    echo "  Web UIs (8080-8088) allowed"
 
     aws ec2 authorize-security-group-ingress \
         --group-id $SG_ID \
@@ -139,9 +120,9 @@ if [ -z "$SG_ID" ]; then
         --cidr 0.0.0.0/0 \
         --region $REGION \
         --output text > /dev/null
-    echo "  ✓ HDFS Web UI (9870) público"
+    echo "  HDFS Web UI (9870) allowed"
 
-    # Puertos internos - solo VPC
+    # Internal Ports
     for PORT in 2181 5432 6123 7077 9000 9092; do
         aws ec2 authorize-security-group-ingress \
             --group-id $SG_ID \
@@ -150,31 +131,31 @@ if [ -z "$SG_ID" ]; then
             --cidr $VPC_CIDR \
             --region $REGION \
             --output text > /dev/null
-        echo "  ✓ Puerto $PORT desde VPC"
     done
+    echo "  Internal ports allowed"
 
-    # Tráfico entre instancias del cluster
+    # Intra-cluster traffic
     aws ec2 authorize-security-group-ingress \
         --group-id $SG_ID \
         --protocol all \
         --source-group $SG_ID \
         --region $REGION \
         --output text > /dev/null
-    echo "  ✓ Todo el tráfico entre nodos del cluster"
-
-    echo -e "${GREEN}✓ Reglas de firewall configuradas${NC}"
+    echo "  Cluster communication allowed"
 else
-    echo -e "${YELLOW}[4/8] Usando reglas existentes del Security Group${NC}"
+    echo "[4/8] Skipping firewall rules (using existing SG)"
 fi
 
-# Función para lanzar instancia
+# Launch Instances
+echo "[5/8] Launching EC2 instances..."
+
 launch_instance() {
     local NAME=$1
     local TYPE=$2
     local VOLUME_SIZE=$3
     local HOSTNAME=$4
 
-    echo -e "${YELLOW}Lanzando $NAME ($TYPE, ${VOLUME_SIZE}GB)...${NC}"
+    echo "Launching $NAME ($TYPE, ${VOLUME_SIZE}GB)..."
 
     INSTANCE_ID=$(aws ec2 run-instances \
         --image-id $AMI_ID \
@@ -190,83 +171,19 @@ echo '127.0.0.1 $HOSTNAME' >> /etc/hosts" \
         --query 'Instances[0].InstanceId' \
         --output text)
 
-    echo -e "${GREEN}✓ $NAME creado: $INSTANCE_ID${NC}"
+    echo "$NAME created: $INSTANCE_ID"
+    echo "$INSTANCE_ID"
 }
 
-# Lanzar las 4 instancias
-echo -e "${YELLOW}[5/8] Lanzando instancias EC2...${NC}"
+MASTER_INSTANCE_ID=$(launch_instance "bigdata-master" "$MASTER_TYPE" 30 "master-node" | tail -n 1)
+WORKER1_INSTANCE_ID=$(launch_instance "bigdata-worker1" "$WORKER_TYPE" 50 "worker1-node" | tail -n 1)
+WORKER2_INSTANCE_ID=$(launch_instance "bigdata-worker2" "$WORKER_TYPE" 50 "worker2-node" | tail -n 1)
+STORAGE_INSTANCE_ID=$(launch_instance "bigdata-storage" "$STORAGE_TYPE" 50 "storage-node" | tail -n 1)
 
-echo -e "${YELLOW}Lanzando bigdata-master ($MASTER_TYPE, 30GB)...${NC}"
-MASTER_INSTANCE_ID=$(aws ec2 run-instances \
-    --image-id $AMI_ID \
-    --instance-type $MASTER_TYPE \
-    --key-name $KEY_NAME \
-    --security-group-ids $SG_ID \
-    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":30,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
-    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-master}]" \
-    --user-data "#!/bin/bash
-hostnamectl set-hostname master-node
-echo '127.0.0.1 master-node' >> /etc/hosts" \
-    --region $REGION \
-    --query 'Instances[0].InstanceId' \
-    --output text)
-echo -e "${GREEN}✓ bigdata-master creado: $MASTER_INSTANCE_ID${NC}"
-
-echo -e "${YELLOW}Lanzando bigdata-worker1 ($WORKER_TYPE, 50GB)...${NC}"
-WORKER1_INSTANCE_ID=$(aws ec2 run-instances \
-    --image-id $AMI_ID \
-    --instance-type $WORKER_TYPE \
-    --key-name $KEY_NAME \
-    --security-group-ids $SG_ID \
-    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
-    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-worker1}]" \
-    --user-data "#!/bin/bash
-hostnamectl set-hostname worker1-node
-echo '127.0.0.1 worker1-node' >> /etc/hosts" \
-    --region $REGION \
-    --query 'Instances[0].InstanceId' \
-    --output text)
-echo -e "${GREEN}✓ bigdata-worker1 creado: $WORKER1_INSTANCE_ID${NC}"
-
-echo -e "${YELLOW}Lanzando bigdata-worker2 ($WORKER_TYPE, 50GB)...${NC}"
-WORKER2_INSTANCE_ID=$(aws ec2 run-instances \
-    --image-id $AMI_ID \
-    --instance-type $WORKER_TYPE \
-    --key-name $KEY_NAME \
-    --security-group-ids $SG_ID \
-    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
-    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-worker2}]" \
-    --user-data "#!/bin/bash
-hostnamectl set-hostname worker2-node
-echo '127.0.0.1 worker2-node' >> /etc/hosts" \
-    --region $REGION \
-    --query 'Instances[0].InstanceId' \
-    --output text)
-echo -e "${GREEN}✓ bigdata-worker2 creado: $WORKER2_INSTANCE_ID${NC}"
-
-echo -e "${YELLOW}Lanzando bigdata-storage ($STORAGE_TYPE, 50GB)...${NC}"
-STORAGE_INSTANCE_ID=$(aws ec2 run-instances \
-    --image-id $AMI_ID \
-    --instance-type $STORAGE_TYPE \
-    --key-name $KEY_NAME \
-    --security-group-ids $SG_ID \
-    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50,\"VolumeType\":\"gp2\",\"DeleteOnTermination\":true}}]" \
-    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=bigdata-storage}]" \
-    --user-data "#!/bin/bash
-hostnamectl set-hostname storage-node
-echo '127.0.0.1 storage-node' >> /etc/hosts" \
-    --region $REGION \
-    --query 'Instances[0].InstanceId' \
-    --output text)
-echo -e "${GREEN}✓ bigdata-storage creado: $STORAGE_INSTANCE_ID${NC}"
-
-# Esperar a que las instancias estén corriendo
-echo -e "${YELLOW}[6/8] Esperando a que las instancias inicien...${NC}"
-echo "  Esperando 60 segundos para que las instancias arranquen..."
+echo "[6/8] Waiting for instances to start (60s)..."
 sleep 60
 
-# Intentar obtener información de las instancias (puede fallar en AWS Learner Lab)
-echo -e "${YELLOW}[7/8] Obteniendo información de instancias...${NC}"
+echo "[7/8] Getting instance info..."
 
 INSTANCES_INFO=$(aws ec2 describe-instances \
     --filters "Name=instance-state-name,Values=running" "Name=network-interface.group-id,Values=$SG_ID" \
@@ -275,31 +192,11 @@ INSTANCES_INFO=$(aws ec2 describe-instances \
     --region $REGION 2>/dev/null | sort)
 
 if [ -z "$INSTANCES_INFO" ]; then
-    echo -e "${YELLOW}⚠ No se puede obtener información automáticamente (restricción de AWS Learner Lab)${NC}"
-    echo -e "${YELLOW}Por favor, obtén las IPs desde la Consola Web de AWS:${NC}"
-    echo "  1. Ve a: https://console.aws.amazon.com/ec2/v2/home?region=$REGION#Instances:"
-    echo "  2. Busca las siguientes instancias por ID y anota sus IPs (Private y Public):"
-    echo ""
-    echo "     bigdata-master:  $MASTER_INSTANCE_ID"
-    echo "     bigdata-worker1: $WORKER1_INSTANCE_ID"
-    echo "     bigdata-worker2: $WORKER2_INSTANCE_ID"
-    echo "     bigdata-storage: $STORAGE_INSTANCE_ID"
-    echo ""
-    echo "  3. Luego edita el archivo cluster-info.txt y reemplaza los placeholders"
-    echo ""
-
-    MASTER_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
-    MASTER_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
-    WORKER1_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
-    WORKER1_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
-    WORKER2_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
-    WORKER2_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
-    STORAGE_PRIVATE_IP="<OBTENER_DE_CONSOLA>"
-    STORAGE_PUBLIC_IP="<OBTENER_DE_CONSOLA>"
+    echo "WARNING: Cannot get instance info automatically."
+    echo "Please get IPs from AWS Console."
 else
-    echo -e "${GREEN}✓ Información obtenida exitosamente${NC}"
-
-    # Guardar IPs en variables
+    echo "Instance Info Retrieved."
+    
     MASTER_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-master" | awk '{print $4}')
     MASTER_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-master" | awk '{print $5}')
     WORKER1_PRIVATE_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-worker1" | awk '{print $4}')
@@ -310,113 +207,44 @@ else
     STORAGE_PUBLIC_IP=$(echo "$INSTANCES_INFO" | grep "bigdata-storage" | awk '{print $5}')
 fi
 
-# Crear archivo de configuración
-echo -e "${YELLOW}[8/8] Creando archivo de configuración...${NC}"
+echo "[8/8] Creating configuration file..."
 
 cat > cluster-info.txt <<EOF
-# Big Data Cluster - Instance Information
+# Big Data Cluster Info
 # Generated: $(date)
 
 Security Group ID: $SG_ID
 VPC ID: $VPC_ID
-VPC CIDR: $VPC_CIDR
 Region: $REGION
 
-# Instances
-Master:
-  Name: bigdata-master
-  Instance ID: $MASTER_INSTANCE_ID
-  Private IP: $MASTER_PRIVATE_IP
-  Public IP: $MASTER_PUBLIC_IP
-
-Worker1:
-  Name: bigdata-worker1
-  Instance ID: $WORKER1_INSTANCE_ID
-  Private IP: $WORKER1_PRIVATE_IP
-  Public IP: $WORKER1_PUBLIC_IP
-
-Worker2:
-  Name: bigdata-worker2
-  Instance ID: $WORKER2_INSTANCE_ID
-  Private IP: $WORKER2_PRIVATE_IP
-  Public IP: $WORKER2_PUBLIC_IP
-
-Storage:
-  Name: bigdata-storage
-  Instance ID: $STORAGE_INSTANCE_ID
-  Private IP: $STORAGE_PRIVATE_IP
-  Public IP: $STORAGE_PUBLIC_IP
+Master:  $MASTER_PUBLIC_IP (Private: $MASTER_PRIVATE_IP)
+Worker1: $WORKER1_PUBLIC_IP (Private: $WORKER1_PRIVATE_IP)
+Worker2: $WORKER2_PUBLIC_IP (Private: $WORKER2_PRIVATE_IP)
+Storage: $STORAGE_PUBLIC_IP (Private: $STORAGE_PRIVATE_IP)
 
 # SSH Commands
-ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$MASTER_PUBLIC_IP   # Master
-ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$WORKER1_PUBLIC_IP  # Worker1
-ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$WORKER2_PUBLIC_IP  # Worker2
-ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$STORAGE_PUBLIC_IP  # Storage
+ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$MASTER_PUBLIC_IP
+ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$WORKER1_PUBLIC_IP
+ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$WORKER2_PUBLIC_IP
+ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$STORAGE_PUBLIC_IP
 
 # Web UIs
-HDFS NameNode:    http://$MASTER_PUBLIC_IP:9870
-Spark Master:     http://$MASTER_PUBLIC_IP:8080
-Flink Dashboard:  http://$MASTER_PUBLIC_IP:8081
-Superset:         http://$STORAGE_PUBLIC_IP:8088
+HDFS:      http://$MASTER_PUBLIC_IP:9870
+Spark:     http://$MASTER_PUBLIC_IP:8080
+Flink:     http://$MASTER_PUBLIC_IP:8081
+Superset:  http://$STORAGE_PUBLIC_IP:8088
 
-# Configuration for orchestrate-cluster.sh
-MASTER_IP="$MASTER_PRIVATE_IP"
-WORKER1_IP="$WORKER1_PRIVATE_IP"
-WORKER2_IP="$WORKER2_PRIVATE_IP"
-STORAGE_IP="$STORAGE_PRIVATE_IP"
-SSH_KEY="~/.ssh/$KEY_NAME.pem"
-
-# /etc/hosts entries (add to ALL instances)
+# /etc/hosts (Add to ALL nodes)
 $MASTER_PRIVATE_IP  master-node bigdata-master
 $WORKER1_PRIVATE_IP worker1-node bigdata-worker1
 $WORKER2_PRIVATE_IP worker2-node bigdata-worker2
 $STORAGE_PRIVATE_IP storage-node bigdata-storage
 EOF
 
-echo -e "${GREEN}✓ Configuración guardada en cluster-info.txt${NC}"
-
-# Mostrar resumen
+echo "Configuration saved to cluster-info.txt"
 echo ""
-echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}¡Cluster creado exitosamente!${NC}"
-echo -e "${GREEN}=========================================${NC}"
-echo ""
-echo -e "${BLUE}Instancias creadas:${NC}"
-if [ -n "$INSTANCES_INFO" ]; then
-    echo "$INSTANCES_INFO" | column -t
-else
-    echo "  bigdata-master:  $MASTER_INSTANCE_ID"
-    echo "  bigdata-worker1: $WORKER1_INSTANCE_ID"
-    echo "  bigdata-worker2: $WORKER2_INSTANCE_ID"
-    echo "  bigdata-storage: $STORAGE_INSTANCE_ID"
-    echo ""
-    echo -e "${YELLOW}  ⚠ Obtén las IPs desde la consola web de AWS (ver instrucciones arriba)${NC}"
-fi
-echo ""
-echo -e "${BLUE}Próximos pasos:${NC}"
-echo ""
-echo "1. Guardar las IPs (ver archivo cluster-info.txt)"
-echo ""
-echo "2. Configurar /etc/hosts en TODAS las instancias:"
-echo "   ${YELLOW}# SSH a cada instancia y ejecutar:${NC}"
-cat <<EOF2
-   sudo tee -a /etc/hosts <<EOF
-$MASTER_PRIVATE_IP  master-node bigdata-master
-$WORKER1_PRIVATE_IP worker1-node bigdata-worker1
-$WORKER2_PRIVATE_IP worker2-node bigdata-worker2
-$STORAGE_PRIVATE_IP storage-node bigdata-storage
-EOF
-EOF2
-echo ""
-echo "3. Actualizar IPs en orchestrate-cluster.sh:"
-echo "   ${YELLOW}vim infrastructure/scripts/orchestrate-cluster.sh${NC}"
-echo "   MASTER_IP=\"$MASTER_PRIVATE_IP\""
-echo "   WORKER1_IP=\"$WORKER1_PRIVATE_IP\""
-echo "   WORKER2_IP=\"$WORKER2_PRIVATE_IP\""
-echo "   STORAGE_IP=\"$STORAGE_PRIVATE_IP\""
-echo ""
-echo "4. Ejecutar instalación:"
-echo "   ${YELLOW}./infrastructure/scripts/orchestrate-cluster.sh setup-all${NC}"
-echo ""
-echo -e "${BLUE}Información guardada en: ${GREEN}cluster-info.txt${NC}"
-echo ""
+echo "Cluster Creation Complete!"
+echo "Next Steps:"
+echo "1. Update IPs in quick-start.sh or orchestrate-cluster.sh"
+echo "2. Configure /etc/hosts on all nodes (use IPs from cluster-info.txt)"
+echo "3. Run: ./quick-start.sh"

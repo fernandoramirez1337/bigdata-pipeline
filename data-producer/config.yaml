@@ -13,7 +13,7 @@ kafka:
 # Dataset Configuration
 dataset:
   # Source type: 's3', 'local', or 'url'
-  source_type: "s3"
+  source_type: "local"
 
   # S3 configuration
   s3:
@@ -27,20 +27,9 @@ dataset:
     pattern: "*.parquet"
 
   # Months to process (format: YYYY-MM)
-  # For 12 months starting from January 2015
+  # Using January 2024 sample data
   months:
-    - "2015-01"
-    - "2015-02"
-    - "2015-03"
-    - "2015-04"
-    - "2015-05"
-    - "2015-06"
-    - "2015-07"
-    - "2015-08"
-    - "2015-09"
-    - "2015-10"
-    - "2015-11"
-    - "2015-12"
+    - "2024-01"
 
 # Replay Configuration
 replay:

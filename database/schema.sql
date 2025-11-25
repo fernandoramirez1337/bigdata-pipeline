@@ -50,8 +50,13 @@ CREATE TABLE IF NOT EXISTS daily_summary (
     total_revenue DOUBLE PRECISION DEFAULT 0.0,
     avg_fare DOUBLE PRECISION DEFAULT 0.0,
     avg_distance DOUBLE PRECISION DEFAULT 0.0,
-    avg_trip_duration DOUBLE PRECISION DEFAULT 0.0,
-    total_passengers BIGINT DEFAULT 0,
+    avg_duration_minutes DOUBLE PRECISION DEFAULT 0.0,
+    avg_passengers DOUBLE PRECISION DEFAULT 0.0,
+    credit_card_trips BIGINT DEFAULT 0,
+    cash_trips BIGINT DEFAULT 0,
+    avg_tip DOUBLE PRECISION DEFAULT 0.0,
+    max_fare DOUBLE PRECISION DEFAULT 0.0,
+    min_fare DOUBLE PRECISION DEFAULT 0.0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -64,7 +69,8 @@ CREATE TABLE IF NOT EXISTS hourly_zone_stats (
     total_revenue DOUBLE PRECISION DEFAULT 0.0,
     avg_fare DOUBLE PRECISION DEFAULT 0.0,
     avg_distance DOUBLE PRECISION DEFAULT 0.0,
-    avg_duration_minutes DOUBLE PRECISION DEFAULT 0.0,
+    avg_duration DOUBLE PRECISION DEFAULT 0.0,
+    avg_passengers DOUBLE PRECISION DEFAULT 0.0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (date, hour, zone_id)

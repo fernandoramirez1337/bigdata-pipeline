@@ -1,51 +1,39 @@
 #!/bin/bash
-###############################################################################
 # Storage/Visualization Node Setup Script (EC2-4)
-# Componentes: HDFS DataNode, PostgreSQL, Apache Superset
-###############################################################################
+# Components: HDFS DataNode, PostgreSQL, Apache Superset
 
 set -e
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 
 # Variables
 INSTALL_DIR="/opt/bigdata"
 DATA_DIR="/data"
 HADOOP_VERSION="3.3.6"
 
-# IPs (obtenidas de /etc/hosts)
+# IPs (from /etc/hosts)
 MASTER_IP=$(getent hosts master-node | awk '{print $1}')
 STORAGE_IP=$(hostname -I | awk '{print $1}')
 
-echo "========================================="
 echo "STORAGE/VISUALIZATION NODE SETUP - EC2-4"
-echo "========================================="
+echo "========================================"
 
-# Ejecutar setup común primero
+# Run common setup
 bash /home/ec2-user/common-setup.sh
 
-#==============================================================================
 # HADOOP (HDFS DataNode)
-#==============================================================================
-echo -e "${GREEN}[1/4] Installing Hadoop ${HADOOP_VERSION}...${NC}"
+echo "[1/4] Installing Hadoop ${HADOOP_VERSION}..."
 cd ${INSTALL_DIR}
-wget https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
+wget -q https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
 tar -xzf hadoop-${HADOOP_VERSION}.tar.gz
 mv hadoop-${HADOOP_VERSION} hadoop
 rm hadoop-${HADOOP_VERSION}.tar.gz
 
-# Configurar variables de entorno
-cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh
+cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh >/dev/null
 export HADOOP_HOME=${INSTALL_DIR}/hadoop
 export HADOOP_CONF_DIR=\$HADOOP_HOME/etc/hadoop
 export PATH=\$PATH:\$HADOOP_HOME/bin:\$HADOOP_HOME/sbin
 EOF
 source /etc/profile.d/bigdata.sh
 
-# Configurar core-site.xml
 cat <<EOF > ${HADOOP_HOME}/etc/hadoop/core-site.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
@@ -60,7 +48,6 @@ cat <<EOF > ${HADOOP_HOME}/etc/hadoop/core-site.xml
 </configuration>
 EOF
 
-# Configurar hdfs-site.xml
 cat <<EOF > ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
@@ -79,29 +66,25 @@ cat <<EOF > ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 </configuration>
 EOF
 
-# Configurar hadoop-env.sh
 echo "export JAVA_HOME=${JAVA_HOME}" >> ${HADOOP_HOME}/etc/hadoop/hadoop-env.sh
 echo "export HADOOP_LOG_DIR=/var/log/bigdata/hadoop" >> ${HADOOP_HOME}/etc/hadoop/hadoop-env.sh
 
-# Crear directorios
 mkdir -p ${DATA_DIR}/hdfs/{datanode,tmp}
 mkdir -p /var/log/bigdata/hadoop
 
-#==============================================================================
 # POSTGRESQL
-#==============================================================================
-echo -e "${GREEN}[2/4] Installing PostgreSQL 15...${NC}"
+echo "[2/4] Installing PostgreSQL 15..."
 
-# Instalar PostgreSQL
-sudo yum install -y postgresql15 postgresql15-server postgresql15-contrib
+# Install PostgreSQL
+sudo yum install -y postgresql15 postgresql15-server postgresql15-contrib >/dev/null
 
-# Inicializar base de datos
+# Initialize database
 sudo postgresql-setup --initdb
 
-# Configurar PostgreSQL para aceptar conexiones remotas
+# Configure PostgreSQL to accept remote connections
 sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/g" /var/lib/pgsql/data/postgresql.conf
 
-# Configurar autenticación
+# Configure authentication
 sudo tee -a /var/lib/pgsql/data/pg_hba.conf > /dev/null <<EOF
 # Allow connections from private network
 host    all             all             10.0.0.0/8              md5
@@ -109,7 +92,7 @@ host    all             all             172.16.0.0/12           md5
 host    all             all             192.168.0.0/16          md5
 EOF
 
-# Configurar parámetros de rendimiento
+# Configure performance parameters
 sudo tee -a /var/lib/pgsql/data/postgresql.conf > /dev/null <<EOF
 
 # Performance tuning
@@ -130,13 +113,13 @@ max_parallel_workers = 4
 max_parallel_maintenance_workers = 2
 EOF
 
-# Iniciar PostgreSQL
+# Start PostgreSQL
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
 
-# Crear base de datos y usuario
-echo -e "${YELLOW}Creating database and user...${NC}"
-sudo -u postgres psql <<EOF
+# Create database and user
+echo "Creating database and user..."
+sudo -u postgres psql <<EOF >/dev/null
 CREATE DATABASE bigdata_taxi;
 CREATE USER bigdata WITH PASSWORD 'bigdata123';
 GRANT ALL PRIVILEGES ON DATABASE bigdata_taxi TO bigdata;
@@ -145,10 +128,10 @@ ALTER DATABASE bigdata_taxi OWNER TO bigdata;
 GRANT ALL ON SCHEMA public TO bigdata;
 EOF
 
-# Crear tablas para métricas en tiempo real
-echo -e "${YELLOW}Creating real-time metrics tables...${NC}"
-sudo -u postgres psql -d bigdata_taxi <<EOF
--- Tabla para métricas en tiempo real por zona
+# Create tables for real-time metrics
+echo "Creating real-time metrics tables..."
+sudo -u postgres psql -d bigdata_taxi <<EOF >/dev/null
+-- Table for real-time metrics by zone
 CREATE TABLE IF NOT EXISTS real_time_zones (
     zone_id VARCHAR(10),
     window_start TIMESTAMP,
@@ -163,7 +146,7 @@ CREATE TABLE IF NOT EXISTS real_time_zones (
     PRIMARY KEY (zone_id, window_start)
 );
 
--- Tabla para métricas globales en tiempo real
+-- Table for global real-time metrics
 CREATE TABLE IF NOT EXISTS real_time_global (
     window_start TIMESTAMP PRIMARY KEY,
     window_end TIMESTAMP,
@@ -174,7 +157,7 @@ CREATE TABLE IF NOT EXISTS real_time_global (
     avg_passengers DECIMAL(4,2)
 );
 
--- Tabla para top zonas activas
+-- Table for top active zones
 CREATE TABLE IF NOT EXISTS top_active_zones (
     update_time TIMESTAMP,
     zone_id VARCHAR(10),
@@ -184,7 +167,7 @@ CREATE TABLE IF NOT EXISTS top_active_zones (
     PRIMARY KEY (update_time, zone_id)
 );
 
--- Tablas para análisis batch
+-- Tables for batch analysis
 CREATE TABLE IF NOT EXISTS daily_summary (
     date DATE PRIMARY KEY,
     total_trips INTEGER,
@@ -217,7 +200,7 @@ CREATE TABLE IF NOT EXISTS route_analysis (
     PRIMARY KEY (pickup_zone, dropoff_zone)
 );
 
--- Crear índices
+-- Create indexes
 CREATE INDEX idx_realtime_zones_window ON real_time_zones(window_start DESC);
 CREATE INDEX idx_realtime_global_window ON real_time_global(window_start DESC);
 CREATE INDEX idx_top_zones_time ON top_active_zones(update_time DESC);
@@ -229,18 +212,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO bigdata;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO bigdata;
 EOF
 
-echo -e "${GREEN}PostgreSQL setup completed!${NC}"
+echo "PostgreSQL setup completed!"
 echo "  Database: bigdata_taxi"
 echo "  User: bigdata"
 echo "  Password: bigdata123"
 echo "  Port: 5432"
 
-#==============================================================================
 # APACHE SUPERSET
-#==============================================================================
-echo -e "${GREEN}[3/4] Installing Apache Superset...${NC}"
+echo "[3/4] Installing Apache Superset..."
 
-# Instalar dependencias del sistema para Superset
+# Install system dependencies for Superset
 sudo yum install -y \
     gcc \
     gcc-c++ \
@@ -251,26 +232,26 @@ sudo yum install -y \
     openssl-devel \
     cyrus-sasl-devel \
     openldap-devel \
-    postgresql-devel
+    postgresql-devel >/dev/null
 
-# Crear entorno virtual
+# Create virtual environment
 python3 -m venv ${INSTALL_DIR}/superset-venv
 source ${INSTALL_DIR}/superset-venv/bin/activate
 
-# Actualizar pip
-pip install --upgrade pip setuptools wheel
+# Upgrade pip
+pip install --upgrade pip setuptools wheel >/dev/null
 
-# Instalar Superset
-echo -e "${YELLOW}Installing Superset (this may take several minutes)...${NC}"
-pip install apache-superset==3.1.0
-pip install psycopg2-binary
-pip install redis
+# Install Superset
+echo "Installing Superset (this may take several minutes)..."
+pip install -q apache-superset==3.1.0
+pip install -q psycopg2-binary
+pip install -q redis
 
-# Crear directorio de configuración
+# Create configuration directory
 mkdir -p ${INSTALL_DIR}/superset
 export SUPERSET_CONFIG_PATH=${INSTALL_DIR}/superset/superset_config.py
 
-# Crear archivo de configuración
+# Create configuration file
 cat <<EOF > ${SUPERSET_CONFIG_PATH}
 import os
 
@@ -300,13 +281,13 @@ FEATURE_FLAGS = {
 }
 EOF
 
-# Inicializar base de datos de Superset
-echo -e "${YELLOW}Initializing Superset database...${NC}"
+# Initialize Superset database
+echo "Initializing Superset database..."
 export FLASK_APP=superset
-superset db upgrade
+superset db upgrade >/dev/null
 
-# Crear usuario admin
-echo -e "${YELLOW}Creating admin user...${NC}"
+# Create admin user
+echo "Creating admin user..."
 superset fab create-admin \
     --username admin \
     --firstname Admin \
@@ -314,15 +295,12 @@ superset fab create-admin \
     --email admin@bigdata.com \
     --password admin123
 
-# Cargar ejemplos (opcional)
-# superset load_examples
-
-# Inicializar Superset
-superset init
+# Initialize Superset
+superset init >/dev/null
 
 deactivate
 
-# Crear script de inicio
+# Create startup script
 cat <<'EOF' > ${INSTALL_DIR}/superset/start-superset.sh
 #!/bin/bash
 source /opt/bigdata/superset-venv/bin/activate
@@ -332,7 +310,7 @@ EOF
 
 chmod +x ${INSTALL_DIR}/superset/start-superset.sh
 
-# Crear servicio systemd
+# Create systemd service
 sudo tee /etc/systemd/system/superset.service > /dev/null <<EOF
 [Unit]
 Description=Apache Superset
@@ -351,22 +329,21 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-#==============================================================================
-# AWS CLI y S3 SYNC
-#==============================================================================
-echo -e "${GREEN}[4/4] Installing AWS CLI...${NC}"
+# AWS CLI and S3 SYNC
+echo "[4/4] Installing AWS CLI..."
 
-# Instalar AWS CLI v2
+# Install AWS CLI v2
 cd /tmp
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
+curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip -q awscliv2.zip
+sudo ./aws/install >/dev/null
 rm -rf aws awscliv2.zip
 
-# Crear script de sync con S3
+# Create S3 sync script
+mkdir -p ${INSTALL_DIR}/scripts
 cat <<'EOF' > ${INSTALL_DIR}/scripts/s3-sync.sh
 #!/bin/bash
-# Script para sincronizar resultados batch con S3
+# Script to sync batch results to S3
 
 S3_BUCKET="${S3_BUCKET_NAME:-s3://bigdata-taxi-results}"
 LOCAL_BATCH_DIR="${DATA_DIR}/batch-results"
@@ -382,12 +359,10 @@ EOF
 
 chmod +x ${INSTALL_DIR}/scripts/s3-sync.sh
 
-# Crear cron job para sync automático (cada hora)
+# Create cron job for automatic sync (hourly)
 (crontab -l 2>/dev/null; echo "0 * * * * ${INSTALL_DIR}/scripts/s3-sync.sh >> /var/log/bigdata/s3-sync.log 2>&1") | crontab -
 
-#==============================================================================
 # SYSTEMD SERVICES
-#==============================================================================
 
 # HDFS DataNode Service
 sudo tee /etc/systemd/system/hadoop-datanode.service > /dev/null <<EOF
@@ -407,14 +382,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd
 sudo systemctl daemon-reload
 
-echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}Storage/Visualization Node Setup Completed!${NC}"
-echo -e "${GREEN}=========================================${NC}"
-
-echo -e "\n${YELLOW}Credentials:${NC}"
+echo "Storage/Visualization Node Setup Completed."
+echo "Credentials:"
 echo "  PostgreSQL:"
 echo "    Host: ${STORAGE_IP}:5432"
 echo "    Database: bigdata_taxi"
@@ -425,22 +396,8 @@ echo "  Superset:"
 echo "    URL: http://${STORAGE_IP}:8088"
 echo "    Username: admin"
 echo "    Password: admin123"
-
-echo -e "\n${YELLOW}Manual Steps Required:${NC}"
-echo "1. Update MASTER_IP in this script"
-echo "2. Configure AWS credentials: aws configure"
-echo "3. Create S3 bucket: aws s3 mb s3://bigdata-taxi-results"
-echo "4. Start services:"
-echo "   sudo systemctl start hadoop-datanode"
-echo "   sudo systemctl start postgresql"
-echo "   sudo systemctl start superset"
 echo ""
-echo "5. Enable services on boot:"
-echo "   sudo systemctl enable hadoop-datanode"
-echo "   sudo systemctl enable postgresql"
-echo "   sudo systemctl enable superset"
-
-echo -e "\n${YELLOW}Access Services:${NC}"
+echo "Access Services:"
 echo "  Superset Dashboard: http://${STORAGE_IP}:8088"
 echo "  PostgreSQL: ${STORAGE_IP}:5432"
 echo "  HDFS NameNode: http://${MASTER_IP}:9870"

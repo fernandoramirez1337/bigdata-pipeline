@@ -1,15 +1,8 @@
 #!/bin/bash
-###############################################################################
 # Worker Node Setup Script (EC2-2 & EC2-3)
-# Componentes: Flink TaskManager, Spark Worker, HDFS DataNode
-###############################################################################
+# Components: Flink TaskManager, Spark Worker, HDFS DataNode
 
 set -e
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 
 # Variables
 INSTALL_DIR="/opt/bigdata"
@@ -18,10 +11,10 @@ FLINK_VERSION="1.18.0"
 SPARK_VERSION="3.5.0"
 HADOOP_VERSION="3.3.6"
 
-# IPs (obtenidas de /etc/hosts)
+# IPs (from /etc/hosts)
 MASTER_IP=$(getent hosts master-node | awk '{print $1}')
 WORKER_IP=$(hostname -I | awk '{print $1}')
-WORKER_ID=$1  # Pasar como argumento: 1 o 2
+WORKER_ID=$1  # Argument: 1 or 2
 
 if [ -z "$WORKER_ID" ]; then
     echo "Usage: $0 <worker_id>"
@@ -29,32 +22,27 @@ if [ -z "$WORKER_ID" ]; then
     exit 1
 fi
 
-echo "========================================="
 echo "WORKER NODE ${WORKER_ID} SETUP - EC2-$((WORKER_ID+1))"
 echo "========================================="
 
-# Ejecutar setup común primero
+# Run common setup
 bash /home/ec2-user/common-setup.sh
 
-#==============================================================================
 # HADOOP (HDFS DataNode)
-#==============================================================================
-echo -e "${GREEN}[1/3] Installing Hadoop ${HADOOP_VERSION}...${NC}"
+echo "[1/3] Installing Hadoop ${HADOOP_VERSION}..."
 cd ${INSTALL_DIR}
-wget https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
+wget -q https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
 tar -xzf hadoop-${HADOOP_VERSION}.tar.gz
 mv hadoop-${HADOOP_VERSION} hadoop
 rm hadoop-${HADOOP_VERSION}.tar.gz
 
-# Configurar variables de entorno
-cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh
+cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh >/dev/null
 export HADOOP_HOME=${INSTALL_DIR}/hadoop
 export HADOOP_CONF_DIR=\$HADOOP_HOME/etc/hadoop
 export PATH=\$PATH:\$HADOOP_HOME/bin:\$HADOOP_HOME/sbin
 EOF
 source /etc/profile.d/bigdata.sh
 
-# Configurar core-site.xml
 cat <<EOF > ${HADOOP_HOME}/etc/hadoop/core-site.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
@@ -69,7 +57,6 @@ cat <<EOF > ${HADOOP_HOME}/etc/hadoop/core-site.xml
 </configuration>
 EOF
 
-# Configurar hdfs-site.xml
 cat <<EOF > ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
@@ -88,33 +75,27 @@ cat <<EOF > ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
 </configuration>
 EOF
 
-# Configurar hadoop-env.sh
 echo "export JAVA_HOME=${JAVA_HOME}" >> ${HADOOP_HOME}/etc/hadoop/hadoop-env.sh
 echo "export HADOOP_LOG_DIR=/var/log/bigdata/hadoop" >> ${HADOOP_HOME}/etc/hadoop/hadoop-env.sh
 
-# Crear directorios
 mkdir -p ${DATA_DIR}/hdfs/{datanode,tmp}
 mkdir -p /var/log/bigdata/hadoop
 
-#==============================================================================
 # SPARK Worker
-#==============================================================================
-echo -e "${GREEN}[2/3] Installing Apache Spark ${SPARK_VERSION}...${NC}"
+echo "[2/3] Installing Apache Spark ${SPARK_VERSION}..."
 cd ${INSTALL_DIR}
-wget https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz
+wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz
 tar -xzf spark-${SPARK_VERSION}-bin-hadoop3.tgz
 mv spark-${SPARK_VERSION}-bin-hadoop3 spark
 rm spark-${SPARK_VERSION}-bin-hadoop3.tgz
 
-# Configurar variables de entorno
-cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh
+cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh >/dev/null
 export SPARK_HOME=${INSTALL_DIR}/spark
 export PATH=\$PATH:\$SPARK_HOME/bin:\$SPARK_HOME/sbin
 export PYSPARK_PYTHON=python3
 EOF
 source /etc/profile.d/bigdata.sh
 
-# Configurar spark-env.sh
 cat <<EOF > ${SPARK_HOME}/conf/spark-env.sh
 export JAVA_HOME=${JAVA_HOME}
 export SPARK_MASTER_HOST=${MASTER_IP}
@@ -128,7 +109,6 @@ export HADOOP_CONF_DIR=${HADOOP_HOME}/etc/hadoop
 export SPARK_LOCAL_DIRS=${DATA_DIR}/spark
 EOF
 
-# Configurar spark-defaults.conf
 cat <<EOF > ${SPARK_HOME}/conf/spark-defaults.conf
 spark.master                     spark://${MASTER_IP}:7077
 spark.eventLog.enabled           true
@@ -142,24 +122,20 @@ EOF
 mkdir -p ${DATA_DIR}/spark
 mkdir -p /var/log/bigdata/spark
 
-#==============================================================================
 # FLINK TaskManager
-#==============================================================================
-echo -e "${GREEN}[3/3] Installing Apache Flink ${FLINK_VERSION}...${NC}"
+echo "[3/3] Installing Apache Flink ${FLINK_VERSION}..."
 cd ${INSTALL_DIR}
-wget https://archive.apache.org/dist/flink/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_2.12.tgz
+wget -q https://archive.apache.org/dist/flink/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_2.12.tgz
 tar -xzf flink-${FLINK_VERSION}-bin-scala_2.12.tgz
 mv flink-${FLINK_VERSION} flink
 rm flink-${FLINK_VERSION}-bin-scala_2.12.tgz
 
-# Configurar variables de entorno
-cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh
+cat <<EOF | sudo tee -a /etc/profile.d/bigdata.sh >/dev/null
 export FLINK_HOME=${INSTALL_DIR}/flink
 export PATH=\$PATH:\$FLINK_HOME/bin
 EOF
 source /etc/profile.d/bigdata.sh
 
-# Configurar flink-conf.yaml
 cat <<EOF > ${FLINK_HOME}/conf/flink-conf.yaml
 jobmanager.rpc.address: ${MASTER_IP}
 jobmanager.rpc.port: 6123
@@ -174,19 +150,15 @@ taskmanager.data.port: $((6121+WORKER_ID))
 taskmanager.rpc.port: $((6122+WORKER_ID))
 EOF
 
-# Instalar Kafka connector para Flink
-echo -e "${YELLOW}Installing Flink Kafka Connector...${NC}"
+echo "Installing Flink Kafka Connector..."
 cd ${FLINK_HOME}/lib
-wget https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/1.18.0/flink-sql-connector-kafka-1.18.0.jar
-wget https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc/3.1.1-1.17/flink-connector-jdbc-3.1.1-1.17.jar
-wget https://jdbc.postgresql.org/download/postgresql-42.6.0.jar
+wget -q https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/1.18.0/flink-sql-connector-kafka-1.18.0.jar
+wget -q https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc/3.1.1-1.17/flink-connector-jdbc-3.1.1-1.17.jar
+wget -q https://jdbc.postgresql.org/download/postgresql-42.6.0.jar
 
-#==============================================================================
 # SYSTEMD SERVICES
-#==============================================================================
-echo -e "${GREEN}Creating systemd services...${NC}"
+echo "Creating systemd services..."
 
-# HDFS DataNode Service
 sudo tee /etc/systemd/system/hadoop-datanode.service > /dev/null <<EOF
 [Unit]
 Description=Hadoop DataNode
@@ -204,7 +176,6 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-# Spark Worker Service
 sudo tee /etc/systemd/system/spark-worker.service > /dev/null <<EOF
 [Unit]
 Description=Spark Worker
@@ -223,7 +194,6 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-# Flink TaskManager Service
 sudo tee /etc/systemd/system/flink-taskmanager.service > /dev/null <<EOF
 [Unit]
 Description=Flink TaskManager
@@ -242,27 +212,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd
 sudo systemctl daemon-reload
 
-echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}Worker ${WORKER_ID} Node Setup Completed!${NC}"
-echo -e "${GREEN}=========================================${NC}"
-
-echo -e "\n${YELLOW}Manual Steps Required:${NC}"
-echo "1. Update MASTER_IP in this script before starting services"
-echo "2. Ensure Master node is running first"
-echo "3. Start services:"
-echo "   sudo systemctl start hadoop-datanode"
-echo "   sudo systemctl start spark-worker"
-echo "   sudo systemctl start flink-taskmanager"
-echo ""
-echo "4. Enable services on boot:"
-echo "   sudo systemctl enable hadoop-datanode"
-echo "   sudo systemctl enable spark-worker"
-echo "   sudo systemctl enable flink-taskmanager"
-
-echo -e "\n${YELLOW}Check Status:${NC}"
+echo "Worker ${WORKER_ID} Node Setup Completed."
+echo "WebUIs:"
 echo "  HDFS:  http://${MASTER_IP}:9870"
 echo "  Spark: http://${MASTER_IP}:8080"
 echo "  Flink: http://${MASTER_IP}:8081"

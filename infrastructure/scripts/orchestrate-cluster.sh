@@ -1,328 +1,166 @@
 #!/bin/bash
-###############################################################################
-# Cluster Orchestration Script
-# Facilita el despliegue y gestión del cluster completo
-###############################################################################
 
-set -e
+# Load cluster IPs
+for config in ".cluster-ips" "../.cluster-ips" "../../.cluster-ips"; do
+    [ -f "$config" ] && source "$config" && break
+done
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Defaults
+MASTER_IP="${MASTER_IP:-18.204.220.35}"
+WORKER1_IP="${WORKER1_IP:-98.93.42.124}"
+WORKER2_IP="${WORKER2_IP:-3.83.20.48}"
+STORAGE_IP="${STORAGE_IP:-34.229.16.230}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/bigd-key.pem}"
+SSH_USER="${SSH_USER:-ec2-user}"
 
-# Function to display usage
 usage() {
-    echo -e "${BLUE}=========================================${NC}"
-    echo -e "${BLUE}Big Data Taxi Pipeline - Cluster Orchestrator${NC}"
-    echo -e "${BLUE}=========================================${NC}"
-    echo ""
-    echo "Usage: $0 <command> [options]"
-    echo ""
-    echo "Commands:"
-    echo "  setup-all          Setup all nodes (requires SSH access)"
-    echo "  start-cluster      Start all services in correct order"
-    echo "  stop-cluster       Stop all services"
-    echo "  status             Check status of all services"
-    echo "  create-topics      Create Kafka topics"
-    echo "  test-connectivity  Test connectivity between nodes"
-    echo "  deploy-jobs        Deploy Flink and Spark jobs"
-    echo ""
-    echo "Examples:"
-    echo "  $0 setup-all"
-    echo "  $0 start-cluster"
-    echo "  $0 status"
+    cat << EOF
+Usage: $0 <command>
+
+Commands:
+  setup-all       Setup all nodes
+  start-cluster   Start all services
+  stop-cluster    Stop all services
+  status          Check status
+  create-topics   Create Kafka topics
+  deploy-jobs     Deploy jobs
+  start-producer  Start producer
+  start-flink-job Start Flink job
+  start-spark-job Start Spark job
+  init-db         Initialize database
+  start-superset  Start Superset
+EOF
     exit 1
 }
 
-# Configuration (UPDATE THESE WITH YOUR EC2 IPs)
-# Using PUBLIC IPs for SSH from local machine
-MASTER_IP="${MASTER_IP:-44.210.18.254}"
-WORKER1_IP="${WORKER1_IP:-44.221.77.132}"
-WORKER2_IP="${WORKER2_IP:-3.219.215.11}"
-STORAGE_IP="${STORAGE_IP:-98.88.249.180}"
-
-SSH_KEY="${SSH_KEY:-~/.ssh/bigd-key.pem}"
-SSH_USER="${SSH_USER:-ec2-user}"
-
-#==============================================================================
-# FUNCTIONS
-#==============================================================================
-
 check_config() {
-    echo -e "${YELLOW}Checking configuration...${NC}"
-
-    if [[ "$MASTER_IP" == "MASTER_PRIVATE_IP" ]]; then
-        echo -e "${RED}ERROR: Please configure EC2 IPs in this script${NC}"
-        echo "Update the following variables:"
-        echo "  MASTER_IP"
-        echo "  WORKER1_IP"
-        echo "  WORKER2_IP"
-        echo "  STORAGE_IP"
-        exit 1
-    fi
-
-    if [[ ! -f "$SSH_KEY" ]]; then
-        echo -e "${RED}ERROR: SSH key not found: $SSH_KEY${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}Configuration OK${NC}"
+    [[ ! -f "$SSH_KEY" ]] && echo "ERROR: SSH key not found: $SSH_KEY" && exit 1
 }
 
-test_connectivity() {
-    echo -e "${YELLOW}Testing connectivity to all nodes...${NC}"
-
-    for node in "Master:$MASTER_IP" "Worker1:$WORKER1_IP" "Worker2:$WORKER2_IP" "Storage:$STORAGE_IP"; do
-        name=$(echo $node | cut -d: -f1)
-        ip=$(echo $node | cut -d: -f2)
-
-        echo -n "  $name ($ip): "
-        if ssh -i $SSH_KEY -o ConnectTimeout=5 -o StrictHostKeyChecking=no $SSH_USER@$ip "echo OK" 2>/dev/null; then
-            echo -e "${GREEN}Connected${NC}"
-        else
-            echo -e "${RED}Failed${NC}"
-        fi
-    done
+ssh_exec() {
+    ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$1 "$2" 2>/dev/null || true
 }
 
 setup_all() {
     check_config
-
-    echo -e "${BLUE}=========================================${NC}"
-    echo -e "${BLUE}Setting up entire cluster${NC}"
-    echo -e "${BLUE}=========================================${NC}"
-
-    # Copy scripts to all nodes
-    echo -e "${YELLOW}[1/4] Copying setup scripts to all nodes...${NC}"
+    echo "Setting up cluster..."
 
     for node in "$MASTER_IP" "$WORKER1_IP" "$WORKER2_IP" "$STORAGE_IP"; do
-        echo "  Copying to $node..."
-        scp -i $SSH_KEY -o StrictHostKeyChecking=no \
-            infrastructure/scripts/common-setup.sh \
-            $SSH_USER@$node:/home/ec2-user/
+        scp -i $SSH_KEY -o StrictHostKeyChecking=no infrastructure/scripts/common-setup.sh $SSH_USER@$node:/home/ec2-user/ &>/dev/null
     done
 
-    scp -i $SSH_KEY infrastructure/scripts/setup-master.sh $SSH_USER@$MASTER_IP:/home/ec2-user/
-    scp -i $SSH_KEY infrastructure/scripts/setup-worker.sh $SSH_USER@$WORKER1_IP:/home/ec2-user/
-    scp -i $SSH_KEY infrastructure/scripts/setup-worker.sh $SSH_USER@$WORKER2_IP:/home/ec2-user/
-    scp -i $SSH_KEY infrastructure/scripts/setup-storage.sh $SSH_USER@$STORAGE_IP:/home/ec2-user/
+    scp -i $SSH_KEY infrastructure/scripts/setup-{master,worker,worker,storage}.sh $SSH_USER@$MASTER_IP:/home/ec2-user/ &>/dev/null
 
-    # Setup Master
-    echo -e "${YELLOW}[2/4] Setting up Master node...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "bash /home/ec2-user/setup-master.sh" || true
-
-    # Setup Workers in parallel
-    echo -e "${YELLOW}[3/4] Setting up Worker nodes...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "bash /home/ec2-user/setup-worker.sh 1" &
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "bash /home/ec2-user/setup-worker.sh 2" &
+    ssh_exec $MASTER_IP "bash /home/ec2-user/setup-master.sh"
+    ssh_exec $WORKER1_IP "bash /home/ec2-user/setup-worker.sh 1" &
+    ssh_exec $WORKER2_IP "bash /home/ec2-user/setup-worker.sh 2" &
     wait
-
-    # Setup Storage
-    echo -e "${YELLOW}[4/4] Setting up Storage node...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "bash /home/ec2-user/setup-storage.sh" || true
-
-    echo -e "${GREEN}=========================================${NC}"
-    echo -e "${GREEN}Setup completed on all nodes!${NC}"
-    echo -e "${GREEN}=========================================${NC}"
+    ssh_exec $STORAGE_IP "bash /home/ec2-user/setup-storage.sh"
+    
+    echo "Setup complete."
 }
 
 start_cluster() {
     check_config
+    echo "Starting cluster..."
 
-    echo -e "${BLUE}=========================================${NC}"
-    echo -e "${BLUE}Starting Big Data Cluster${NC}"
-    echo -e "${BLUE}=========================================${NC}"
-
-    # Start Master services
-    echo -e "${YELLOW}[1/6] Starting Master services...${NC}"
-    echo "  Starting Zookeeper..."
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "sudo systemctl start zookeeper"
+    ssh_exec $MASTER_IP "source /etc/profile.d/bigdata.sh && \$ZOOKEEPER_HOME/bin/zkServer.sh start"
     sleep 5
 
-    echo "  Starting Kafka..."
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "sudo systemctl start kafka"
+    ssh_exec $MASTER_IP "source /etc/profile.d/bigdata.sh && nohup \$KAFKA_HOME/bin/kafka-server-start.sh \$KAFKA_HOME/config/server.properties > /var/log/bigdata/kafka.log 2>&1 &"
     sleep 10
 
-    echo "  Formatting and starting HDFS..."
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "
-        if [ ! -d /data/hdfs/namenode/current ]; then
-            hdfs namenode -format -force
-        fi
-        \$HADOOP_HOME/sbin/start-dfs.sh
-    "
+    ssh_exec $MASTER_IP "source /etc/profile.d/bigdata.sh && [ ! -d /data/hdfs/namenode/current ] && hdfs namenode -format -force; \$HADOOP_HOME/bin/hdfs --daemon start namenode"
     sleep 10
 
-    # Start Storage services
-    echo -e "${YELLOW}[2/6] Starting Storage services...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "
-        sudo systemctl start postgresql
-        sudo systemctl start hadoop-datanode
-    "
-    sleep 5
-
-    # Start Worker services
-    echo -e "${YELLOW}[3/6] Starting Worker services...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "sudo systemctl start hadoop-datanode" &
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "sudo systemctl start hadoop-datanode" &
+    ssh_exec $STORAGE_IP "sudo systemctl start postgresql; source /etc/profile.d/bigdata.sh && \$HADOOP_HOME/bin/hdfs --daemon start datanode"
+    ssh_exec $WORKER1_IP "source /etc/profile.d/bigdata.sh && \$HADOOP_HOME/bin/hdfs --daemon start datanode" &
+    ssh_exec $WORKER2_IP "source /etc/profile.d/bigdata.sh && \$HADOOP_HOME/bin/hdfs --daemon start datanode" &
     wait
     sleep 5
 
-    # Create HDFS directories
-    echo -e "${YELLOW}[4/6] Creating HDFS directories...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "
-        hdfs dfs -mkdir -p /data/taxi/raw
-        hdfs dfs -mkdir -p /spark-logs
-        hdfs dfs -mkdir -p /flink-checkpoints
-        hdfs dfs -mkdir -p /flink-savepoints
-        hdfs dfs -chmod -R 777 /
-    "
+    ssh_exec $MASTER_IP "source /etc/profile.d/bigdata.sh && hdfs dfs -mkdir -p /data/taxi/raw /spark-logs /flink-checkpoints /flink-savepoints && hdfs dfs -chmod -R 777 /"
 
-    # Start Spark
-    echo -e "${YELLOW}[5/6] Starting Spark cluster...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "\$SPARK_HOME/sbin/start-master.sh"
+    ssh_exec $MASTER_IP "source /etc/profile.d/bigdata.sh && \$SPARK_HOME/sbin/start-master.sh"
     sleep 5
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "sudo systemctl start spark-worker" &
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "sudo systemctl start spark-worker" &
+    ssh_exec $WORKER1_IP "source /etc/profile.d/bigdata.sh && \$SPARK_HOME/sbin/start-worker.sh spark://master-node:7077" &
+    ssh_exec $WORKER2_IP "source /etc/profile.d/bigdata.sh && \$SPARK_HOME/sbin/start-worker.sh spark://master-node:7077" &
     wait
 
-    # Start Flink
-    echo -e "${YELLOW}[6/6] Starting Flink cluster...${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "\$FLINK_HOME/bin/jobmanager.sh start"
+    ssh_exec $MASTER_IP "source /etc/profile.d/bigdata.sh && \$FLINK_HOME/bin/jobmanager.sh start"
     sleep 5
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "sudo systemctl start flink-taskmanager" &
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "sudo systemctl start flink-taskmanager" &
+    ssh_exec $WORKER1_IP "source /etc/profile.d/bigdata.sh && \$FLINK_HOME/bin/taskmanager.sh start" &
+    ssh_exec $WORKER2_IP "source /etc/profile.d/bigdata.sh && \$FLINK_HOME/bin/taskmanager.sh start" &
     wait
 
-    echo -e "${GREEN}=========================================${NC}"
-    echo -e "${GREEN}Cluster started successfully!${NC}"
-    echo -e "${GREEN}=========================================${NC}"
-
-    status
+    echo "Cluster started."
+    check_status
 }
 
 stop_cluster() {
     check_config
+    echo "Stopping cluster..."
 
-    echo -e "${YELLOW}Stopping Big Data Cluster...${NC}"
-
-    # Stop Flink
-    echo "  Stopping Flink..."
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "\$FLINK_HOME/bin/jobmanager.sh stop" || true
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "sudo systemctl stop flink-taskmanager" &
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "sudo systemctl stop flink-taskmanager" &
+    ssh_exec $MASTER_IP "\$FLINK_HOME/bin/jobmanager.sh stop"
+    ssh_exec $WORKER1_IP "sudo systemctl stop flink-taskmanager" &
+    ssh_exec $WORKER2_IP "sudo systemctl stop flink-taskmanager" &
     wait
 
-    # Stop Spark
-    echo "  Stopping Spark..."
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "sudo systemctl stop spark-worker" &
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "sudo systemctl stop spark-worker" &
+    ssh_exec $WORKER1_IP "sudo systemctl stop spark-worker" &
+    ssh_exec $WORKER2_IP "sudo systemctl stop spark-worker" &
     wait
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "\$SPARK_HOME/sbin/stop-master.sh" || true
+    ssh_exec $MASTER_IP "\$SPARK_HOME/sbin/stop-master.sh"
 
-    # Stop HDFS
-    echo "  Stopping HDFS..."
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "\$HADOOP_HOME/sbin/stop-dfs.sh" || true
+    ssh_exec $MASTER_IP "\$HADOOP_HOME/sbin/stop-dfs.sh"
+    ssh_exec $MASTER_IP "sudo systemctl stop kafka zookeeper"
 
-    # Stop Kafka and Zookeeper
-    echo "  Stopping Kafka and Zookeeper..."
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "
-        sudo systemctl stop kafka
-        sudo systemctl stop zookeeper
-    " || true
-
-    echo -e "${GREEN}Cluster stopped${NC}"
+    echo "Cluster stopped."
 }
 
 check_status() {
     check_config
+    echo "Cluster Status:"
+    echo ""
 
-    echo -e "${BLUE}=========================================${NC}"
-    echo -e "${BLUE}Cluster Status${NC}"
-    echo -e "${BLUE}=========================================${NC}"
+    echo "Master ($MASTER_IP):"
+    ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$MASTER_IP "
+        jps | grep -q NameNode && echo '  HDFS NameNode: running' || echo '  HDFS NameNode: stopped'
+        jps | grep -q Master && echo '  Spark Master: running' || echo '  Spark Master: stopped'
+        jps | grep -q StandaloneSessionClusterEntrypoint && echo '  Flink JobManager: running' || echo '  Flink JobManager: stopped'
+    " 2>/dev/null
 
-    echo -e "\n${YELLOW}Master Node ($MASTER_IP):${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "
-        echo -n '  Zookeeper: '
-        sudo systemctl is-active zookeeper || echo 'stopped'
-        echo -n '  Kafka: '
-        sudo systemctl is-active kafka || echo 'stopped'
-        echo -n '  HDFS NameNode: '
-        jps | grep -q NameNode && echo 'running' || echo 'stopped'
-        echo -n '  Spark Master: '
-        jps | grep -q Master && echo 'running' || echo 'stopped'
-        echo -n '  Flink JobManager: '
-        jps | grep -q StandaloneSessionClusterEntrypoint && echo 'running' || echo 'stopped'
-    "
+    for worker in "Worker1:$WORKER1_IP" "Worker2:$WORKER2_IP"; do
+        name="${worker%:*}"
+        ip="${worker#*:}"
+        echo "$name ($ip):"
+        ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$ip "
+            jps | grep -q DataNode && echo '  HDFS DataNode: running' || echo '  HDFS DataNode: stopped'
+            jps | grep -q Worker && echo '  Spark Worker: running' || echo '  Spark Worker: stopped'
+            jps | grep -q TaskManagerRunner && echo '  Flink TaskManager: running' || echo '  Flink TaskManager: stopped'
+        " 2>/dev/null
+    done
 
-    echo -e "\n${YELLOW}Worker1 Node ($WORKER1_IP):${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$WORKER1_IP "
-        echo -n '  HDFS DataNode: '
-        sudo systemctl is-active hadoop-datanode || echo 'stopped'
-        echo -n '  Spark Worker: '
-        sudo systemctl is-active spark-worker || echo 'stopped'
-        echo -n '  Flink TaskManager: '
-        sudo systemctl is-active flink-taskmanager || echo 'stopped'
-    "
+    echo "Storage ($STORAGE_IP):"
+    ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$STORAGE_IP "
+        jps | grep -q DataNode && echo '  HDFS DataNode: running' || echo '  HDFS DataNode: stopped'
+        sudo systemctl is-active postgresql &>/dev/null && echo '  PostgreSQL: running' || echo '  PostgreSQL: stopped'
+    " 2>/dev/null
 
-    echo -e "\n${YELLOW}Worker2 Node ($WORKER2_IP):${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$WORKER2_IP "
-        echo -n '  HDFS DataNode: '
-        sudo systemctl is-active hadoop-datanode || echo 'stopped'
-        echo -n '  Spark Worker: '
-        sudo systemctl is-active spark-worker || echo 'stopped'
-        echo -n '  Flink TaskManager: '
-        sudo systemctl is-active flink-taskmanager || echo 'stopped'
-    "
-
-    echo -e "\n${YELLOW}Storage Node ($STORAGE_IP):${NC}"
-    ssh -i $SSH_KEY $SSH_USER@$STORAGE_IP "
-        echo -n '  HDFS DataNode: '
-        sudo systemctl is-active hadoop-datanode || echo 'stopped'
-        echo -n '  PostgreSQL: '
-        sudo systemctl is-active postgresql || echo 'stopped'
-        echo -n '  Superset: '
-        sudo systemctl is-active superset || echo 'stopped'
-    "
-
-    echo -e "\n${YELLOW}Web UIs:${NC}"
-    echo "  HDFS NameNode:   http://$MASTER_IP:9870"
-    echo "  Spark Master:    http://$MASTER_IP:8080"
-    echo "  Flink Dashboard: http://$MASTER_IP:8081"
-    echo "  Superset:        http://$STORAGE_IP:8088"
+    echo ""
+    echo "Web UIs:"
+    echo "  HDFS:     http://$MASTER_IP:9870"
+    echo "  Spark:    http://$MASTER_IP:8080"
+    echo "  Flink:    http://$MASTER_IP:8081"
+    echo "  Superset: http://$STORAGE_IP:8088"
 }
 
 create_kafka_topics() {
     check_config
-
-    echo -e "${YELLOW}Creating Kafka topics...${NC}"
-
-    ssh -i $SSH_KEY $SSH_USER@$MASTER_IP "
-        \$KAFKA_HOME/bin/kafka-topics.sh --create \
-            --bootstrap-server localhost:9092 \
-            --replication-factor 1 \
-            --partitions 3 \
-            --topic taxi-trips-stream \
-            --config compression.type=snappy \
-            --config retention.ms=86400000
-
-        echo ''
-        echo 'Listing topics:'
-        \$KAFKA_HOME/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
-    "
-
-    echo -e "${GREEN}Kafka topics created${NC}"
+    echo "Creating Kafka topics..."
+    ssh_exec $MASTER_IP "\$KAFKA_HOME/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --topic taxi-trips-stream --config compression.type=snappy --config retention.ms=86400000 2>/dev/null || echo 'Topic exists'; \$KAFKA_HOME/bin/kafka-topics.sh --list --bootstrap-server localhost:9092"
 }
 
-#==============================================================================
-# MAIN
-#==============================================================================
-
-if [ $# -eq 0 ]; then
-    usage
-fi
+[ $# -eq 0 ] && usage
 
 case "$1" in
     setup-all)
@@ -340,11 +178,52 @@ case "$1" in
     create-topics)
         create_kafka_topics
         ;;
-    test-connectivity)
-        test_connectivity
+    deploy-jobs)
+        check_config
+        echo "Deploying jobs..."
+        cd ../../data-producer
+        ssh_exec $MASTER_IP "mkdir -p ~/bigdata-pipeline/data-producer"
+        scp -i $SSH_KEY -r src config.yaml requirements.txt synthetic_producer.py $SSH_USER@$MASTER_IP:~/bigdata-pipeline/data-producer/ &>/dev/null
+        cd ../streaming && bash build.sh &>/dev/null
+        scp -i $SSH_KEY flink-jobs/target/taxi-streaming-jobs-1.0-SNAPSHOT.jar $SSH_USER@$MASTER_IP:~/ &>/dev/null
+        cd ../batch/spark-jobs
+        ssh_exec $MASTER_IP "mkdir -p ~/bigdata-pipeline/batch/spark-jobs"
+        scp -i $SSH_KEY *.py $SSH_USER@$MASTER_IP:~/bigdata-pipeline/batch/spark-jobs/ &>/dev/null
+        echo "Jobs deployed."
+        ;;
+    start-producer)
+        check_config
+        echo "Starting producer..."
+        ssh_exec $MASTER_IP "cd ~/bigdata-pipeline/data-producer && pip3 install kafka-python &>/dev/null && nohup python3 synthetic_producer.py > /var/log/bigdata/synthetic_producer.log 2>&1 &"
+        echo "Producer started."
+        ;;
+    start-flink-job)
+        check_config
+        echo "Starting Flink job..."
+        ssh_exec $MASTER_IP "/opt/bigdata/flink/bin/flink run -d ~/taxi-streaming-jobs-1.0-SNAPSHOT.jar"
+        echo "Flink job submitted."
+        ;;
+    start-spark-job)
+        check_config
+        echo "Starting Spark job..."
+        ssh_exec $MASTER_IP "/opt/bigdata/spark/bin/spark-submit --master spark://master-node:7077 --deploy-mode client --driver-memory 512m --executor-memory 1g --executor-cores 1 --packages org.postgresql:postgresql:42.6.0 ~/bigdata-pipeline/batch/spark-jobs/daily_summary.py"
+        echo "Spark job submitted."
+        ;;
+    init-db)
+        check_config
+        echo "Initializing database..."
+        scp -i $SSH_KEY ../../database/schema.sql $SSH_USER@$STORAGE_IP:~/ &>/dev/null
+        ssh_exec $STORAGE_IP "sudo -u postgres psql -c 'CREATE DATABASE bigdata_taxi;' 2>/dev/null || true; sudo -u postgres psql -c \"CREATE USER bigdata WITH PASSWORD 'bigdata123';\" 2>/dev/null || true; sudo -u postgres psql -c 'GRANT ALL PRIVILEGES ON DATABASE bigdata_taxi TO bigdata;' 2>/dev/null || true; PGPASSWORD=bigdata123 psql -U bigdata -d bigdata_taxi -f ~/schema.sql 2>&1 | grep -v 'already exists' | grep -v 'NOTICE' || true"
+        echo "Database initialized."
+        ;;
+    start-superset)
+        check_config
+        echo "Starting Superset..."
+        ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$STORAGE_IP "cd /opt/bigdata/superset && source venv/bin/activate && export FLASK_APP=superset && export SUPERSET_CONFIG_PATH=/opt/bigdata/superset/superset_config.py && nohup superset run -h 0.0.0.0 -p 8088 --with-threads > /var/log/bigdata/superset.log 2>&1 &"
+        echo "Superset started."
         ;;
     *)
-        echo -e "${RED}Unknown command: $1${NC}"
+        echo "Unknown command: $1"
         usage
         ;;
 esac

@@ -40,6 +40,11 @@ public class ZoneAggregationJob {
     private static final String JDBC_URL = "jdbc:postgresql://storage-node:5432/bigdata_taxi";
     private static final String JDBC_USER = "bigdata";
     private static final String JDBC_PASSWORD = "bigdata123";
+    
+    // Reusable ObjectMapper (thread-safe)
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder()
+            .addModule(new JavaTimeModule())
+            .build();
 
     public static void main(String[] args) throws Exception {
         // Set up the streaming execution environment
@@ -69,12 +74,7 @@ public class ZoneAggregationJob {
 
         // Parse JSON to TaxiTrip objects
         DataStream<TaxiTrip> trips = kafkaStream
-                .map(json -> {
-                    ObjectMapper mapper = JsonMapper.builder()
-                            .addModule(new JavaTimeModule())
-                            .build();
-                    return mapper.readValue(json, TaxiTrip.class);
-                })
+                .map(json -> OBJECT_MAPPER.readValue(json, TaxiTrip.class))
                 .filter(trip -> trip.getPickupZone() != null && !trip.getPickupZone().isEmpty())
                 .name("Parse and Filter");
 

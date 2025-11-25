@@ -9,7 +9,7 @@ from pyspark.sql.functions import (
     col, count, sum as spark_sum, avg, min as spark_min, max as spark_max,
     date_trunc, to_date, hour, dayofweek, when
 )
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType, LongType
 from datetime import datetime, timedelta
 import sys
 
@@ -20,6 +20,7 @@ def create_spark_session():
         .appName("NYC Taxi Daily Summary") \
         .config("spark.sql.adaptive.enabled", "true") \
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+        .master("local[*]") \
         .getOrCreate()
 
 
@@ -27,27 +28,39 @@ def read_taxi_data(spark, input_path, target_date=None):
     """Read taxi data from HDFS"""
     print(f"Reading data from: {input_path}")
 
-    # Define schema
+    # Define schema matching the actual parquet file
+    # We read PULocationID and rename it later
     schema = StructType([
         StructField("tpep_pickup_datetime", TimestampType(), True),
         StructField("tpep_dropoff_datetime", TimestampType(), True),
-        StructField("passenger_count", IntegerType(), True),
+        StructField("passenger_count", LongType(), True),
         StructField("trip_distance", DoubleType(), True),
-        StructField("pickup_longitude", DoubleType(), True),
-        StructField("pickup_latitude", DoubleType(), True),
-        StructField("dropoff_longitude", DoubleType(), True),
-        StructField("dropoff_latitude", DoubleType(), True),
-        StructField("payment_type", IntegerType(), True),
+        StructField("PULocationID", LongType(), True),
+        StructField("DOLocationID", LongType(), True),
+        StructField("payment_type", LongType(), True),
         StructField("fare_amount", DoubleType(), True),
         StructField("total_amount", DoubleType(), True),
-        StructField("tip_amount", DoubleType(), True),
-        StructField("pickup_zone", StringType(), True),
-        StructField("dropoff_zone", StringType(), True),
-        StructField("duration_minutes", DoubleType(), True),
+        StructField("tip_amount", DoubleType(), True)
     ])
 
     # Read parquet files
-    df = spark.read.parquet(input_path)
+    try:
+        df = spark.read.schema(schema).parquet(input_path)
+    except Exception as e:
+        print(f"Warning: Could not read with schema: {e}")
+        df = spark.read.parquet(input_path)
+
+    # Rename columns to match logic and calculate duration
+    df = df.withColumnRenamed("PULocationID", "pickup_zone") \
+           .withColumnRenamed("DOLocationID", "dropoff_zone") \
+           .withColumn("pickup_zone", col("pickup_zone").cast("string")) \
+           .withColumn("dropoff_zone", col("dropoff_zone").cast("string"))
+
+    # Calculate duration if not exists
+    if "duration_minutes" not in df.columns:
+        df = df.withColumn("duration_minutes", 
+            (col("tpep_dropoff_datetime").cast("long") - col("tpep_pickup_datetime").cast("long")) / 60.0
+        )
 
     # Filter by date if specified
     if target_date:
@@ -82,10 +95,15 @@ def write_to_postgresql(df, table_name, jdbc_url, jdbc_properties):
     """Write results to PostgreSQL"""
     print(f"Writing to PostgreSQL table: {table_name}")
 
-    df.write \
+    # Increase batch size and use more partitions for writing
+    jdbc_properties["batchsize"] = "10000"
+    jdbc_properties["reWriteBatchedInserts"] = "true"
+    
+    # Repartition to control parallelism
+    df.repartition(4).write \
         .jdbc(url=jdbc_url, table=table_name, mode="append", properties=jdbc_properties)
 
-    print(f"Successfully wrote {df.count()} records to {table_name}")
+    print(f"Successfully wrote records to {table_name}")
 
 
 def write_to_s3(df, output_path):
@@ -102,9 +120,9 @@ def write_to_s3(df, output_path):
 
 def main():
     # Configuration
-    HDFS_INPUT = "hdfs://master-node:9000/data/taxi/raw"  # UPDATE THIS
+    HDFS_INPUT = "hdfs://master-node:9000/data/taxi/raw"
     S3_OUTPUT = "s3a://bigdata-taxi-results/batch-results/daily-summary"
-    POSTGRES_URL = "jdbc:postgresql://STORAGE_IP:5432/bigdata_taxi"  # UPDATE THIS
+    POSTGRES_URL = "jdbc:postgresql://storage-node:5432/bigdata_taxi"
     POSTGRES_TABLE = "daily_summary"
 
     POSTGRES_PROPS = {
@@ -114,12 +132,17 @@ def main():
     }
 
     # Get target date from command line or use yesterday
+    target_date = None
     if len(sys.argv) > 1:
-        target_date = sys.argv[1]  # Format: YYYY-MM-DD
+        if sys.argv[1] == "--all-history":
+            print("Processing ALL history data found in HDFS")
+            target_date = None
+        else:
+            target_date = sys.argv[1]  # Format: YYYY-MM-DD
+            print(f"Processing daily summary for: {target_date}")
     else:
         target_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-    print(f"Processing daily summary for: {target_date}")
+        print(f"Processing daily summary for: {target_date}")
 
     # Create Spark session
     spark = create_spark_session()

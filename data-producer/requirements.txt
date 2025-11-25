@@ -1,9 +1,0 @@
-kafka-python==2.0.2
-python-snappy==0.7.3
-pandas==2.0.3
-pyarrow==12.0.1
-boto3==1.28.25
-pyyaml==6.0.1
-numpy==1.24.3
-tqdm==4.66.1
-python-dateutil==2.8.2
